@@ -102,7 +102,6 @@ function make_biny_lib()
         make helper_build_lib
         make flash_build_lib
         make config_build_lib
-        make ma_build_lib
         cp -raf common_lib ${current_path}/binary_deb/
     else
         for project in "${project_list[@]}"; do
@@ -116,7 +115,6 @@ function make_biny_lib()
                 make helper_build_lib
                 make flash_build_lib
                 make config_build_lib
-                make ma_build_lib
                 cp -raf common_lib ${current_path}/binary_deb/
                 cd ../
             done

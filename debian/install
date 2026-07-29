@@ -11,4 +11,3 @@ debian/tmp/lib/systemd/system/rolling_helper.d/* lib/systemd/system/rolling_help
 debian/tmp/lib/systemd/system/rolling_helper*.service lib/systemd/system
 debian/tmp/usr/share/dbus-1/system.d/com.rolling.helper.conf usr/share/dbus-1/system.d
 debian/tmp/usr/lib/udev/rules.d/76-mm-rolling-linux-apps-port-types.rules usr/lib/udev/rules.d
-debian/tmp/opt/rolling/rolling_ma_service/* opt/rolling/rolling_ma_service

@@ -8,28 +8,18 @@ CONFIG_SERVICE_APP_PATH="${APP_DIR}/rolling_config_service/rolling_config*"
 FLASH_SERVICE_APP_PATH="${APP_DIR}/rolling_flash_service/rolling_flash*"
 FLASH_SERVICE_APP_DIR="${APP_DIR}/rolling_flash_service"
 HELPER_SERVICE_APP_PATH="${APP_DIR}/rolling_helper_service/"
-MA_SERVICE_PATH_APP_DIR="${BUILD_DIR}/../application/rolling_ma_service"
-MA_SERVICE_PATH_APP_PATH="${BUILD_DIR}/../application/rolling_ma_service/rolling_ma"
 
 
 DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
 DEB_SOFT_DIR="${DEB_SOFT_DIRS}/opt/rolling"
 DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_config_service"
 DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
-
-
 DEB_HELPER_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_helper_service"
-DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
-
-OEMUSBID_LIST=( 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215 )
-
-
 
 BUILD_HELPER=$(grep -o 'set(BUILD_HELPER "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 BUILD_DOWN_TOOL=$(grep -o 'set(BUILD_DOWN_TOOL "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 BUILD_FLASH=$(grep -o 'set(BUILD_FLASH "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 BUILD_CONFIG=$(grep -o 'set(BUILD_CONFIG "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
-BUILD_MA=$(grep -o 'set(BUILD_MA "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 OEM_BUILD=$(grep -o 'set(OEM_BUILD "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 echo "OEM_BUILD: ${OEM_BUILD}"
 
@@ -37,9 +27,6 @@ echo "build helper package ${BUILD_HELPER}"
 echo "build down tool package ${BUILD_DOWN_TOOL}"
 echo "build flash package ${BUILD_FLASH}"
 echo "build config package ${BUILD_CONFIG}"
-echo "build ma package ${BUILD_MA}"
-
-
 
 function operation_menu_select()
 {
@@ -252,33 +239,7 @@ LABEL=\"mm_rolling_linux_apps_port_types_end\"
 " > $1/99-mm-rolling-linux-apps-port-types.rules
     chmod 755 $1/99-mm-rolling-linux-apps-port-types.rules
 }
-function create_fcc_unlock()
-{
-    for s in ${OEMUSBID_LIST[@]}
-    do
-        # 确定要执行的二进制文件路径
-        local binary_path="/opt/rolling/rolling_ma_service/rolling_ma"
-        if [ "lenovo" == "${OEM_BUILD}" ]; then
-            binary_path="/opt/rolling/rolling_ma_service/libmodemauth.so.1.0"
-        fi
 
-        # 创建fcc-unlock脚本
-        cat > "$1/$s" << EOF
-#!/bin/sh
-
-# SPDX-License-Identifier: CC0-1.0
-# 2023 Nero zhang <sinaro@sinaro.es>
-#
-# Rolling RW101 FCC unlock mechanism
-#
-
-# run fcc-unlock binary
-$binary_path
-exit $?
-EOF
-    done
-
-}
 
 function create_and_install()
 {
@@ -305,10 +266,6 @@ function create_and_install()
             mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/rolling_helper_tools/
             cp ${BUILD_DIR}/application/3rd/qdl/qdl ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/rolling_helper_tools/
         fi
-    fi
-    if [ "yes" == "${BUILD_MA}" ]; then
-        DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
-        mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
 
     mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_fw_pkg
@@ -340,9 +297,6 @@ function create_install()
     fi
     if [ "yes" == "${BUILD_HELPER}" ]; then
         DEB_HELPER_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_helper_service"
-    fi
-    if [ "yes" == "${BUILD_MA}" ]; then
-        DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
     fi
     
     create_and_install

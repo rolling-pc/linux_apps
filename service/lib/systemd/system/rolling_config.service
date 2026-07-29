@@ -1,0 +1,15 @@
+[Unit]
+Description=Firmware Config Service
+After=ModemManager.service rolling_helper.service
+
+[Service]
+EnvironmentFile=/lib/systemd/system/rolling_config.d/env.conf
+ExecStart=/opt/rolling/rolling_config_service/rolling_config
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-abort
+Type=simple
+User=root
+
+[Install]
+Alias=rolling_config.service
+WantedBy=multi-user.target

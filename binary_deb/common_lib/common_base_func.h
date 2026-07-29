@@ -48,6 +48,17 @@
 #define AT_COMMAND_LEN                   256
 #endif
 
+#define MSG_PAYLOAD_SIZE        (2000)
+#define MSG_BUFFER_SIZE         (2048)
+#define MSG_MTEXT_MAX_LEN       (MSG_BUFFER_SIZE - sizeof(long))
+
+// Global thread handle: store device check sub-thread reference for resource cleanup
+extern GThread *g_dev_check_sub_thread;
+// Global atomic exit flag: graceful sub-thread exit switch, ensures thread-safe access
+extern gint g_dev_check_sub_exit;
+
+#define MBIM_FUNCTION_SUPPORTED
+
 #define RDONLY                           "r"
 #define WRONLY                           "w"
 

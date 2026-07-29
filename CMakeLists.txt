@@ -35,7 +35,6 @@ option(BUILD_HELPER "build helper" "")
 option(BUILD_DOWN_TOOL "build down tool" "")
 option(BUILD_FLASH "build flash" "")
 option(BUILD_CONFIG "build config" "")
-option(BUILD_MA "build ma" "")
 option(BUILD_BY_LIB "use prebuilt libs" "")
 
 set(build_deb FALSE)
@@ -112,9 +111,7 @@ endif()
 if("${BUILD_CONFIG}" STREQUAL "")
     set(BUILD_CONFIG ${DEFAULT_BUILD_CONFIG})
 endif()
-if("${BUILD_MA}" STREQUAL "")
-    set(BUILD_MA ${DEFAULT_BUILD_MA})
-endif()
+
 
 # 处理BUILD_DEB和BUILD_RPM
 if(build_deb)
@@ -134,7 +131,6 @@ message("build helper: ${BUILD_HELPER}")
 message("build down tool: ${BUILD_DOWN_TOOL}")
 message("build flash: ${BUILD_FLASH}")
 message("build config: ${BUILD_CONFIG}")
-message("build ma: ${BUILD_MA}")
 
 # 检查是否同时构建deb和rpm
 if("${BUILD_DEB}" STREQUAL "yes" AND "${BUILD_RPM}" STREQUAL "yes")
@@ -160,11 +156,7 @@ set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
 set(outer_loop_exit FALSE)
 
-if (${PROJECT_BUILD} MATCHES "350")
-    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../no_ma_script")
-else ()
-    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
-endif ()
+set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
 
 set(PROJECT_DEB_CONTROL_PREINST "${PROJECT_DEB_CONTROL_PATH}/preinst")
 set(PROJECT_DEB_CONTROL_POSTINST "${PROJECT_DEB_CONTROL_PATH}/postinst")

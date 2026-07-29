@@ -16,19 +16,6 @@ set -e
 
 case "$1" in
     configure)
-    if [ -d "/usr/lib/x86_64-linux-gnu/ModemManager" ]; then
-        cp -raf  /opt/rolling/rolling_ma_service/fcc-unlock.d  /usr/lib/x86_64-linux-gnu/ModemManager/
-        rm -rf /opt/rolling/rolling_ma_service/fcc-unlock.d
-        chown -R root:root  /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
-        chmod 755 -R /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
-    elif [ -d "/usr/lib64/ModemManager" ]; then
-        cp -raf  /opt/rolling/rolling_ma_service/fcc-unlock.d  /usr/lib64/ModemManager/
-        rm -rf /opt/rolling/rolling_ma_service/fcc-unlock.d
-        chown -R root:root  /usr/lib64/ModemManager/fcc-unlock.d
-        chmod 755 -R /usr/lib64/ModemManager/fcc-unlock.d
-    else
-        echo "No ModemManager directory found!"
-    fi
     if [ -d "/opt/rolling/rolling_config_service" ]; then
         mkdir -p /etc/opt/rolling/config_file/rolling_config_service/
         mv /opt/rolling/rolling_config_service/*.ini /etc/opt/rolling/config_file/rolling_config_service/

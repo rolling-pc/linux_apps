@@ -18,7 +18,7 @@ project(rolling_flash_service)
 # 版本配置
 set(FLASH_MAJOR_VERSION 2)
 set(FLASH_MINOR_VERSION 0)
-set(FLASH_PATCH_VERSION 13)
+set(FLASH_PATCH_VERSION 14)
 set(FLASH_VERSION_STRING ${FLASH_MAJOR_VERSION}.${FLASH_MINOR_VERSION}.${FLASH_PATCH_VERSION})
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
 				"./version.h")

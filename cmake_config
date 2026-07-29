@@ -18,7 +18,6 @@ for SECTION in "${3}"; do
     BUILD_DOWN_TOOL=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_DOWN_TOOL)
     BUILD_FLASH=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_FLASH)
     BUILD_CONFIG=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_CONFIG)
-    BUILD_MA=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_MA)
 done
     cat <<EOF > "${1}/build/${2}_${3}_config.cmake"
 set(PROJECT_BUILD "${2}")
@@ -30,5 +29,4 @@ set(BUILD_HELPER "${BUILD_HELPER}")
 set(BUILD_DOWN_TOOL "${BUILD_DOWN_TOOL}")
 set(BUILD_FLASH "${BUILD_FLASH}")
 set(BUILD_CONFIG "${BUILD_CONFIG}")
-set(BUILD_MA "${BUILD_MA}")
 EOF

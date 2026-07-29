@@ -1,0 +1,15 @@
+[Unit]
+Description=Firmware Helper Service
+After=ModemManager.service
+
+[Service]
+EnvironmentFile=/lib/systemd/system/rolling_helper.d/env.conf
+ExecStart=/opt/rolling/rolling_helper_service/rolling_helper
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-abort
+Type=simple
+User=root
+
+[Install]
+Alias=rolling_helper.service
+WantedBy=multi-user.target

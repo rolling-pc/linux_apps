@@ -1,17 +1,6 @@
 #!/bin/bash
 #remove vid:pid link file befor packge remove
-# rm -rf /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d/*:*
 systemctl daemon-reload
-
-if [ -d "/usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d" ]; then
-    if [ -d "/opt/rolling/rolling_ma_service" ]; then
-        rm -rf /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
-    fi
-elif [ -d "/usr/lib64/ModemManager/fcc-unlock.d" ]; then
-    if [ -d "/opt/rolling/rolling_ma_service" ]; then
-        rm -rf /usr/lib64/ModemManager/fcc-unlock.d
-    fi
-fi
 
 if [ -d "/etc/opt/rolling/config_file/rolling_config_service/" ]; then
     rm -rf /etc/opt/rolling/config_file/rolling_config_service/

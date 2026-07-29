@@ -1,0 +1,14 @@
+[Unit]
+Description=Firmware Flash Service
+After=ModemManager.service rolling_helper.service
+[Service]
+EnvironmentFile=/lib/systemd/system/rolling_flash.d/env.conf
+ExecStart=/opt/rolling/rolling_flash_service/rolling_flash
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-abort
+Type=simple
+User=root
+
+[Install]
+Alias=rolling_flash.service
+WantedBy=multi-user.target
