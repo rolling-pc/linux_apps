@@ -24,7 +24,8 @@
 extern gboolean sim_status_handler(RollingGdbusHelper *object, const char *value, gpointer userdata);
 extern gboolean fastboot_status_handler(RollingGdbusHelper *object, const char *value, gpointer userdata);
 
-
+pthread_mutex_t flash_mutex;
+pthread_cond_t lvfs_extract_cond;
 
 void print_usage(void)
 {
@@ -113,6 +114,12 @@ void rolling_firmware_recovery_run()
     pthread_create(&ptid, NULL, &rolling_recovery_monitor, NULL);
     ROLLING_LOG_INFO("[%s] Recovery thread create!\n", __func__);
 }
+void rolling_lvfs_run()
+{
+    pthread_t ptid;
+    pthread_create(&ptid, NULL, &lvfs_download_firmware, NULL);
+    ROLLING_LOG_INFO("[%s] lvfs thread create!\n", __func__);
+}
 void open_log(int argc, char *argv[])
 {
     log_init();
@@ -138,17 +145,19 @@ int main(int argc, char *argv[])
     int i;
 
     open_log(argc, argv);
+    if (pthread_mutex_init(&flash_mutex, NULL) != 0) {
+        ROLLING_LOG_ERROR("pthread_mutex_init flash_mutex failed");
+        goto FINISH2;
+    }
+    if (pthread_cond_init(&lvfs_extract_cond, NULL) != 0) {
+        ROLLING_LOG_ERROR("pthread_cond_init lvfs_extract_cond failed");
+        goto FINISH1;
+    }
 
     trigger_rules_activation();
     append_config_param();
 
-	config_file_init(g_file, &checkInfo);
-	//download firmware
-	if (lvfs_download_firmware())
-	{
-		ROLLING_LOG_ERROR("download firmware fail");
-	}
-
+    config_file_init(g_file, &checkInfo);
     ret = g_debus_init();
     if (ret == GDEBUG_INIT_FAILED)
     {
@@ -159,6 +168,8 @@ int main(int argc, char *argv[])
     rolling_monitor_package_run();
     /* create recovery thread */
     rolling_firmware_recovery_run();
+    /* create lvfs download thrread */
+    rolling_lvfs_run();
     gMainloop = g_main_loop_new(NULL, FALSE);
 
     new_pkg = check_new_package();
@@ -210,10 +221,15 @@ int main(int argc, char *argv[])
         else
         {
             need_flash_flag = check_flash_flag();
-            if (need_flash_flag == TRUE)
-            {
-                fw_update();
-            }
+            if (need_flash_flag == TRUE) {
+	            if(try_get_modem_ap_version()) {
+                    fw_update();
+		        }
+		        else
+		        {
+		            flash_fw_with_all_img();
+		        }
+		    }
         }
     }
 
@@ -227,6 +243,10 @@ int main(int argc, char *argv[])
     g_object_unref(proxy);
 
 FINISH:
+    pthread_mutex_destroy(&flash_mutex);
+FINISH1:
+    pthread_cond_destroy(&lvfs_extract_cond);
+FINISH2:
     closelog();
     if (g_file != NULL)
     {

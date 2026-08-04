@@ -64,7 +64,8 @@ typedef enum
     FLASH_FW_FASTBOOT,
     REQ_DL_MODULE = FLASH_FW_FASTBOOT,
     SET_WARNING_BAR,
-
+    GET_ANTIRB,
+    GET_FAKE_VERSION,
     /* FWrecovery service command list */
     GET_PORT_STATE         = 0x2001,
     GET_OEM_ID,

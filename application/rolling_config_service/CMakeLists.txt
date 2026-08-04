@@ -20,7 +20,7 @@ project(rolling_config_service)
 # 版本配置
 set(CONFIG_MAJOR_VERSION 2)
 set(CONFIG_MINOR_VERSION 0)
-set(CONFIG_PATCH_VERSION 10)
+set(CONFIG_PATCH_VERSION 11)
 set(CONFIG_VERSION_STRING ${CONFIG_MAJOR_VERSION}.${CONFIG_MINOR_VERSION}.${CONFIG_PATCH_VERSION})
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
 		"./version.h")
@@ -164,6 +164,10 @@ elseif (BUILD_LIB)
     message(STATUS "Building config service as static library")
     add_library(rolling_config_service_${CONFIG_VERSION_STRING} STATIC ${CONFIG_SOURCES})
     config_link_libraries(rolling_config_service_${CONFIG_VERSION_STRING})
+
+    # 安装静态库
+    install(TARGETS rolling_config_service_${CONFIG_VERSION_STRING} DESTINATION lib)
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include)
 
 else()
     # 构建可执行文件模式

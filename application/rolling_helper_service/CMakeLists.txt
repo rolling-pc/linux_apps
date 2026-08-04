@@ -18,7 +18,7 @@ project(rolling_helper_service)
 
 set(HELPER_MAJOR_VERSION 2)
 set(HELPER_MINOR_VERSION 0)
-set(HELPER_PATCH_VERSION 24)
+set(HELPER_PATCH_VERSION 25)
 set(HELPER_VERSION_STRING ${HELPER_MAJOR_VERSION}.${HELPER_MINOR_VERSION}.${HELPER_PATCH_VERSION})
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
                 "./version.h")
@@ -132,7 +132,12 @@ if(build_by_lib)
     message(STATUS "STATTUSbuild lib not build exe")
 
     # 静态库路径指向binary_deb/common_lib目录下的通用库文件
-    set(STATIC_LIB_PATH "${CMAKE_SOURCE_DIR}/binary_deb/common_lib/libqualcomm_${PROJECT_BUILD}_${OEM_BUILD}_${HELPER_VERSION_STRING}.a")
+    if(PROJECT_BUILD STREQUAL "rw350")
+        set(HELPER_PLATFORM "mtk")
+    else()
+        set(HELPER_PLATFORM "qualcomm")
+    endif()
+    set(STATIC_LIB_PATH "${CMAKE_SOURCE_DIR}/binary_deb/common_lib/lib${HELPER_PLATFORM}_${PROJECT_BUILD}_${OEM_BUILD}_${HELPER_VERSION_STRING}.a")
     message(STATUS "Using static library: ${STATIC_LIB_PATH}")
 
     # 构建通用可执行文件，使用实际的rolling_helper_main.c文件
@@ -157,6 +162,14 @@ elseif (BUILD_LIB AND NOT build_by_lib)
     # 确保静态库构建依赖于D-Bus生成目标
     add_dependencies(rolling_helper_service_${HELPER_VERSION_STRING} helper_dbus_generated)
     helper_link_libraries(rolling_helper_service_${HELPER_VERSION_STRING})
+
+    # 安装静态库
+    install(TARGETS rolling_helper_service_${HELPER_VERSION_STRING} DESTINATION lib)
+    install(FILES 
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_common.h 
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_basic_func.h 
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/common_base_func.h 
+        DESTINATION include)
 
 # 最后检查常规可执行文件构建模式
 elseif(NOT build_by_lib AND NOT BUILD_LIB)
@@ -241,4 +254,46 @@ elseif(NOT build_by_lib AND NOT BUILD_LIB)
             endif()
         endif()
     endforeach()
+endif()
+
+if (build_by_code AND (${BUILD_LIB} STREQUAL "yes"))
+    set(lib_path ${PROJECT_BINARY_DIR}/../../common_lib)
+    if ((${PROJECT_BUILD} STREQUAL "rw101") OR (${PROJECT_BUILD} STREQUAL "rw135"))
+        add_custom_target(
+            helper_build_lib
+            COMMAND mkdir -p ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/libqualcomm*.a ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/code/lib*.a ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_common.h ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_basic_func.h ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/common_base_func.h ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/rolling-helper-gdbus-generated.h ${lib_path}
+            COMMENT "helper service build lib successfully"
+        )
+    elseif(${PROJECT_BUILD} STREQUAL "rw350")
+        add_custom_target(
+            helper_build_lib
+            COMMAND mkdir -p ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/libmtk*.a ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/code/lib*.a ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_common.h ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_basic_func.h ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/common_base_func.h ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/rolling-helper-gdbus-generated.h ${lib_path}
+            COMMENT "helper service build lib successfully"
+        )
+    else()
+        add_custom_target(
+            helper_build_lib
+            COMMAND mkdir -p ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/libqualcomm*.a ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/libmtk*.a ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/code/lib*.a ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_common.h ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/rolling_helper_basic_func.h ${lib_path}
+            COMMAND cp  -raf ${CMAKE_CURRENT_SOURCE_DIR}/common/common_base_func.h ${lib_path}
+            COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/rolling-helper-gdbus-generated.h ${lib_path}
+            COMMENT "helper service build lib successfully"
+        )
+    endif()
 endif()

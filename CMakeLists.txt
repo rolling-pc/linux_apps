@@ -23,7 +23,7 @@ cmake_minimum_required(VERSION 3.6)
 # minor = Small design change specific to any operation.
 # macro = small change or bug fix
 
-project(rolling_linux VERSION 2.0.29)
+project(rolling_linux VERSION 2.1.6)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(PROJECT_BUILD "build project" "")
@@ -35,6 +35,7 @@ option(BUILD_HELPER "build helper" "")
 option(BUILD_DOWN_TOOL "build down tool" "")
 option(BUILD_FLASH "build flash" "")
 option(BUILD_CONFIG "build config" "")
+option(BUILD_MA "build ma" "")
 option(BUILD_BY_LIB "use prebuilt libs" "")
 
 set(build_deb FALSE)
@@ -111,6 +112,9 @@ endif()
 if("${BUILD_CONFIG}" STREQUAL "")
     set(BUILD_CONFIG ${DEFAULT_BUILD_CONFIG})
 endif()
+if("${BUILD_MA}" STREQUAL "")
+    set(BUILD_MA ${DEFAULT_BUILD_MA})
+endif()
 
 
 # 处理BUILD_DEB和BUILD_RPM
@@ -131,6 +135,7 @@ message("build helper: ${BUILD_HELPER}")
 message("build down tool: ${BUILD_DOWN_TOOL}")
 message("build flash: ${BUILD_FLASH}")
 message("build config: ${BUILD_CONFIG}")
+message("build ma: ${BUILD_MA}")
 
 # 检查是否同时构建deb和rpm
 if("${BUILD_DEB}" STREQUAL "yes" AND "${BUILD_RPM}" STREQUAL "yes")

@@ -30,8 +30,16 @@ The rolling_flash, rolling_config, and rolling_helper binaries are LGPL 2.0.<br>
 
 ## 2. Build
 1. cmake -S . -B build -DPROJECT_BUILD=xxx -DOEM_BUILD=yyy<br>
-    Example: if xxx is rw101 and yyy is lenovo, you can use:<br>
+    Example (rw101 lenovo):<br>
     `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw101 -DOEM_BUILD=lenovo -DBUILD_BY_LIB=1` <br>
+    Example (rw350 lenovo):<br>
+    `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350 -DOEM_BUILD=lenovo -DBUILD_BY_LIB=1` <br>
+    Example (rw350 dell):<br>
+    `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350 -DOEM_BUILD=dell -DBUILD_BY_LIB=1` <br>
+    Or use script:<br>
+    `./script/make_deb.sh deb rw350 lenovo`<br>
+    `./script/make_deb.sh deb rw350 dell`<br>
+    `./setup.sh deb rw350 lenovo --no-install`<br>
 ### 2.1 Build lib
   1. To build helper lib:<br>
     Build all helper libs: `cmake -S . -B build -DBUILD_LIB=y`<br>

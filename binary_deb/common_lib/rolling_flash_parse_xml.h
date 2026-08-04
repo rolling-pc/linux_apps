@@ -27,16 +27,6 @@
 #endif
 
 #define DEV_PKG_PATH     "/etc/opt/rolling/rolling_fw_pkg/FwPackage/DEV_OTA_PACKAGE/"
-static xmlChar *carrier_id = NULL;
-static xmlChar *fw_version = NULL;
-static xmlChar *ap_version = NULL;
-static xmlChar *cust_pack = NULL;
-static xmlChar *oem_pack_ver = NULL;
-static xmlChar *oem_pack_version = NULL;
-static xmlChar *dev_ota_image = NULL;
-static const int path_len = 500;
-static xmlChar *switch_table_file = NULL;
-
 
 int get_fwinfo(fw_details *fwinfo);
 void find_path_of_file(const char* file, char* directory, char *pathoffile);

@@ -13,7 +13,7 @@ What it does:
 
 Arguments:
   1) deb|rpm    layout type (deb or rpm; same layout for this script)
-  2) project    e.g. rw101
+  2) project    e.g. rw101, rw350
   3) oem        e.g. lenovo
 
 Optional:
@@ -21,6 +21,8 @@ Optional:
 
 Examples:
   ./setup.sh deb rw101 lenovo
+  ./setup.sh deb rw350 lenovo
+  ./setup.sh deb rw350 dell
   ./setup.sh deb rw101 lenovo --no-install
 EOF
 }

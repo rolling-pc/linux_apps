@@ -4,8 +4,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR/.."
 PROJECT_ROOT="$(pwd)"
 build_path="$PROJECT_ROOT"
-project_list=("rw101")
-oem_list=("lenovo" "generic")
+project_list=("rw101" "rw350")
+oem_list=("lenovo" "generic" "dell")
 
 # 手动设置build_by_lib参数，1表示使用库编译，0表示正常编译
 # 用户可以直接修改这里的值来控制编译方式
@@ -160,5 +160,7 @@ elif [ "lib" == "$1" ]; then
 else
     echo  -e "para error,for example, you can send cmd to build deb
      \033[1;31m ./make_deb.sh deb rw101 lenovo
+     \033[1;31m ./make_deb.sh deb rw350 lenovo
+     \033[1;31m ./make_deb.sh deb rw350 dell
      \033[0;30m or you can send cmd build helper lib"
 fi

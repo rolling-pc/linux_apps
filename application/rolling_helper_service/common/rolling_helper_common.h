@@ -32,7 +32,7 @@
 #define AT_COMMAND_LEN                   256
 #endif
 
- #define MBIM_FUNCTION_SUPPORTED
+#define MBIM_FUNCTION_SUPPORTED
 
 #endif /* _ROLLING_HELPER_COMMON_H_ */
 

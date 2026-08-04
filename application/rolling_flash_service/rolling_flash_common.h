@@ -108,6 +108,7 @@ extern g_flags g_full_flags;
 
 typedef struct {
     int package_flag;
+    int edl_flag;
     int retry;
     char subSysId[DEV_SUBSYSID_LEN];
     char IMEI[DEV_IMEI_LEN];
@@ -120,6 +121,9 @@ typedef struct {
     char *oem_pack;
     char *dev_pack;
     char *ap_ver;
+    int antirb_md;
+    int antirb_ap;
+    char fake;
 } fw_details;
 
 typedef struct {
@@ -128,6 +132,11 @@ typedef struct {
     char oem_pack[DEV_SUBSYSID_LEN];
     char dev_pack[DEV_SUBSYSID_LEN];
     char ap_ver[DEV_SUBSYSID_LEN];
+    char antirb_md_ap[DEV_SUBSYSID_LEN];
+    char fake_ver[DEV_SUBSYSID_LEN];
+    int antirb_md;
+    int antirb_ap;
+    char fake;
 } mdmver_details;
 extern mdmver_details g_curmdm_versions;
 
@@ -187,10 +196,19 @@ typedef enum
     INIT = 0,
     NEW_PACKAGE,
     DECOMPRESS_SUCCESS,
+    FLASH_PRE,
     FLASH_START,
     FLASH_FAIL,
     FLASH_SUCCESS
 } e_pkg_flag;
+
+typedef enum
+{
+    EDL_INIT = 0,
+    EDL_FLASH_PRE,
+    EDL_FLASH_FAIL,
+    EDL_FLASH_SUCCESS
+} e_edl_pkg_flag;
 
 typedef enum
 {
@@ -205,7 +223,8 @@ typedef enum
     SET_ATTACH_APN,
     FLASH_FW,
     SET_WARNING_BAR,
-
+    GET_ANTIRB,
+    GET_FAKE_VERSION,
     /* FWrecovery service command list */
     GET_PORT_STATE         = 0x2001,
     GET_OEM_ID,
@@ -235,7 +254,8 @@ typedef enum
     PORTSTATEFLAG,
     UNKNOWNFLAG,
 } e_flags;
-
+extern pthread_mutex_t flash_mutex;
+extern pthread_cond_t lvfs_extract_cond;
 void log_init();
 void log_set(int argc, char *argv[]);
 int find_ini(const char *filename, const char *section, const char *key, int *section_pos, int *key_pos);
@@ -255,7 +275,11 @@ void reset_update_retry();
 void execute_cmd(int cmd_id, char* result);
 bool check_valid_string(char *result);
 e_pkg_flag get_package_flag();
+e_pkg_flag get_package_flag_unlock();
 void set_package_flag(e_pkg_flag flag);
+e_edl_pkg_flag get_edl_flag();
+e_edl_pkg_flag get_edl_flag_unlock();
+void set_edl_flag(e_edl_pkg_flag flag);
 int call_helper_method_final(gchar *inarg, gchar *atresp, gint cids);
 
 void *check_imei_change();
@@ -273,8 +297,9 @@ bool check_flash_flag();
 void get_wwanconfigID(char *wwanconfigID);
 gboolean comparative_oem_version();
 gboolean flash_fw_with_recovery(char *ap, char *modem, char *oem);
+gboolean flash_fw_with_all_img(void);
 void trigger_rules_activation();
-gboolean recovery_get_version_of_xml(char **ap, char **modem, char **oem, char *subsys_id);
+gboolean recovery_get_version_of_xml(char **ap, char **modem, char **oem, char **op, char *subsys_id);
 bool check_power_status();
 void UpdateSubSysid(char* subSysid);
 void save_cur_subSysid(char *subSysid);
@@ -288,5 +313,6 @@ gboolean init_flash_timer();
 gboolean regester_interesting_siganl();
 gboolean get_port_state(e_port_state *state);
 gboolean start_flash_timer(int time);
+bool try_get_modem_ap_version(void);
 
 #endif

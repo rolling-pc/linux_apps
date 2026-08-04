@@ -132,7 +132,7 @@ void     rolling_adapter_control_mbim_init(void);
 void     rolling_helperd_device_Check(gpointer user_data);
 
 gint     rolling_adapter_helperm_get_normal_msg_from_helperd(void *msgs);
-gint     rolling_adapter_helperm_get_control_msg_from_helperd(void *msgs);
+gint     rolling_adapter_helperm_get_control_msg_from_helperd(void *msgs, gint buf_len);
 gint     rolling_adapter_helperm_send_msg_to_helperd(void *msgs, int msgsize);
 gint     rolling_adapter_helperd_get_control_msg_from_helperm(void *msgs);
 gint     rolling_adapter_helperd_get_normal_msg_from_helperm(void *msgs);

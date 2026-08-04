@@ -154,17 +154,40 @@ rolling_helperd_control_receiver_init()
     return RET_OK;
 }
 
+// Global variable: store device check thread handle for resource cleanup on exit
+static GThread *g_dev_check_thread = NULL;
+
+// Thread cleanup function: called on program exit to ensure thread resource release
+static void rolling_helperd_device_check_thread_cleanup(void)
+{
+    if (g_dev_check_thread != NULL) {
+        ROLLING_LOG_DEBUG("Joining device check thread...\n");
+        g_thread_join(g_dev_check_thread);
+        g_dev_check_thread = NULL;
+        ROLLING_LOG_DEBUG("Device check thread released!\n");
+    }
+}
+
 static gint
 rolling_helperd_device_check_thread_init()
 {
     int      ret                = RET_ERROR;
-    GThread  *dev_check_thread  = NULL;
 
-    dev_check_thread = g_thread_new ("dev-check", (GThreadFunc)rolling_helperd_device_state_init, NULL);
-    if (!dev_check_thread) {
+    // If thread already exists, return success directly
+    if (g_dev_check_thread != NULL) {
+        ROLLING_LOG_WARNING("Device check thread already running!\n");
+        return RET_OK;
+    }
+
+    g_dev_check_thread = g_thread_new ("dev-check", (GThreadFunc)rolling_helperd_device_state_init, NULL);
+    if (!g_dev_check_thread) {
         ROLLING_LOG_ERROR("thread init failed!\n");
         return RET_ERROR;
     }
+
+    // Register exit cleanup function
+    atexit(rolling_helperd_device_check_thread_cleanup);
+    ROLLING_LOG_DEBUG("Device check thread started successfully.\n");
 
     return RET_OK;
 }
@@ -246,6 +269,20 @@ gint helper_thread(gint argc, char *argv[])
     g_main_loop_run (gMainLoop);
 
     /* Below funcs are used to unregister all dependent variables and exit main func */
+
+    ROLLING_LOG_DEBUG("Main loop exited, starting cleanup...\n");
+
+    // Set exit flag to notify sub-thread to exit
+    if (g_dev_check_sub_thread != NULL) {
+        ROLLING_LOG_DEBUG("Setting exit flag for device check sub thread...\n");
+        g_atomic_int_set(&g_dev_check_sub_exit, TRUE);
+
+        // Wait for sub-thread to finish
+        ROLLING_LOG_DEBUG("Waiting for device check sub thread to exit...\n");
+        g_thread_join(g_dev_check_sub_thread);
+        g_dev_check_sub_thread = NULL;
+        ROLLING_LOG_DEBUG("Device check sub thread exited.\n");
+    }
 
     rolling_mutex_force_sync_unlock();
 

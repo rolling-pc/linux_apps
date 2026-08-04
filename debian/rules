@@ -62,8 +62,8 @@ current_dir=$(shell pwd)
 override_dh_auto_configure:
 	dh_auto_configure --sourcedirectory=. --builddirectory=build -- \
 	    --install-prefix="$(current_dir)/debian/tmp" \
-		-DPROJECT_BUILD=rw101 \
- 		-DOEM_BUILD=lenovo
+		-DPROJECT_BUILD=rw350 \
+ 		-DOEM_BUILD=hp
 
 
 override_dh_auto_build:

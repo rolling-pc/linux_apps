@@ -18,7 +18,7 @@ project(rolling_flash_service)
 # 版本配置
 set(FLASH_MAJOR_VERSION 2)
 set(FLASH_MINOR_VERSION 0)
-set(FLASH_PATCH_VERSION 14)
+set(FLASH_PATCH_VERSION 18)
 set(FLASH_VERSION_STRING ${FLASH_MAJOR_VERSION}.${FLASH_MINOR_VERSION}.${FLASH_PATCH_VERSION})
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
 				"./version.h")
@@ -163,6 +163,10 @@ elseif (BUILD_LIB AND NOT build_by_lib)
     add_library(rolling_flash_service_${FLASH_VERSION_STRING} STATIC ${source_files})
     flash_link_libraries(rolling_flash_service_${FLASH_VERSION_STRING})
 
+    # 安装静态库
+    install(TARGETS rolling_flash_service_${FLASH_VERSION_STRING} DESTINATION lib)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_common.h DESTINATION include)
+
 # 最后检查常规可执行文件构建模式
 elseif(NOT build_by_lib)
     # 构建可执行文件模式
@@ -179,7 +183,7 @@ if (build_by_code AND BUILD_LIB)
     set(lib_path ${PROJECT_BINARY_DIR}/../../common_lib)
 
     # 根据不同项目类型创建相应的build_lib目标，使用与helper_service完全相同的目录结构
-    if ((${PROJECT_BUILD} STREQUAL "rw101")) 
+    if ((${PROJECT_BUILD} STREQUAL "rw101") OR (${PROJECT_BUILD} STREQUAL "rw135")) 
         add_custom_target(
             flash_build_lib
             # 创建输出目录（使用-p参数确保目录存在不会报错）
@@ -193,7 +197,6 @@ if (build_by_code AND BUILD_LIB)
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_prepare.h ${lib_path}
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_signal.h ${lib_path}
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_update.h ${lib_path}
-            COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_download.h ${lib_path}
             # 复制D-Bus接口头文件
             COMMAND cp -raf ${CMAKE_CURRENT_BINARY_DIR}/generated/rolling-helper-gdbus-generated.h ${lib_path}
             COMMENT "Flash service build lib successfully"
@@ -212,7 +215,6 @@ if (build_by_code AND BUILD_LIB)
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_prepare.h ${lib_path}
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_signal.h ${lib_path}
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_update.h ${lib_path}
-            COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_download.h ${lib_path}
             # 复制D-Bus接口头文件
             COMMAND cp -raf ${CMAKE_CURRENT_BINARY_DIR}/generated/rolling-helper-gdbus-generated.h ${lib_path}
             COMMENT "Flash service build lib successfully"
@@ -231,7 +233,6 @@ if (build_by_code AND BUILD_LIB)
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_prepare.h ${lib_path}
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_signal.h ${lib_path}
             COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_update.h ${lib_path}
-            COMMAND cp -raf ${CMAKE_CURRENT_SOURCE_DIR}/rolling_flash_download.h ${lib_path}
             # 复制D-Bus接口头文件
             COMMAND cp -raf ${CMAKE_CURRENT_BINARY_DIR}/generated/rolling-helper-gdbus-generated.h ${lib_path}
             COMMENT "Flash service build lib successfully"

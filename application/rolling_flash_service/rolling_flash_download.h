@@ -21,6 +21,6 @@
 #ifndef __ROLLING_FLASH_DOWNLOAD_H__
 #define __ROLLING_FLASH_DOWNLOAD_H__
 
-int lvfs_download_firmware(void);
+void* lvfs_download_firmware(void *arg);
 
 #endif
