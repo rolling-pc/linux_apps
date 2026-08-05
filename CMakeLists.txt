@@ -23,7 +23,7 @@ cmake_minimum_required(VERSION 3.6)
 # minor = Small design change specific to any operation.
 # macro = small change or bug fix
 
-project(rolling_linux VERSION 2.1.6)
+project(rolling_linux VERSION 2.1.7)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(PROJECT_BUILD "build project" "")

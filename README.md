@@ -38,15 +38,9 @@ The rolling_flash, rolling_config, and rolling_helper binaries are LGPL 2.0.<br>
     `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350 -DOEM_BUILD=dell -DBUILD_BY_LIB=1` <br>
     Or use script:<br>
     `./script/make_deb.sh deb rw350 lenovo`<br>
+    `./script/make_deb.sh rpm rw350 lenovo`<br>
     `./script/make_deb.sh deb rw350 dell`<br>
-    `./setup.sh deb rw350 lenovo --no-install`<br>
-### 2.1 Build lib
-  1. To build helper lib:<br>
-    Build all helper libs: `cmake -S . -B build -DBUILD_LIB=y`<br>
-    Or build one lib: `cmake -S . -B build -DBUILD_LIB=y -DPROJECT_BUILD=rw101 -DOEM_BUILD=lenovo`<br>
-  2. cmake --build build<br>
-  3. cd build && make build_lib<br>
-  4. You will find `common_lib` in the `build` directory.
+    `./script/make_deb.sh rpm rw350 dell`<br>
 
 ## 3. If using systemd
 - Reload config:<br>
@@ -71,6 +65,13 @@ When you build with `setup.sh`, files under `service/` are copied to the system 
 
 - **udev rules (usr/lib/udev/):** They are not copied because ModemManager already includes the content of these rules; no need to install them again.
 - **env.conf (lib/systemd/system/rolling_*.d/env.conf):** These files only set environment variable paths (e.g. LD_LIBRARY_PATH). The current build does not use libraries from that path, so they are not needed.
+
+## 5. fccunlock
+- location path:<br>
+  rolling_ma : /opt/rolling/rolling_ma_service/.
+  14c3:4d75 : /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
+- working:<br>
+  rolling_ma while be call by Modemmanager, when Modemmanager detect the modem is locked.
 
 # Release history
 - version 1.0.0<br>
