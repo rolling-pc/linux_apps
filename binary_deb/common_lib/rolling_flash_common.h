@@ -297,8 +297,9 @@ bool check_flash_flag();
 void get_wwanconfigID(char *wwanconfigID);
 gboolean comparative_oem_version();
 gboolean flash_fw_with_recovery(char *ap, char *modem, char *oem);
+gboolean flash_fw_with_all_img(void);
 void trigger_rules_activation();
-gboolean recovery_get_version_of_xml(char **ap, char **modem, char **oem, char *subsys_id);
+gboolean recovery_get_version_of_xml(char **ap, char **modem, char **oem, char **op, char *subsys_id);
 bool check_power_status();
 void UpdateSubSysid(char* subSysid);
 void save_cur_subSysid(char *subSysid);
@@ -312,5 +313,6 @@ gboolean init_flash_timer();
 gboolean regester_interesting_siganl();
 gboolean get_port_state(e_port_state *state);
 gboolean start_flash_timer(int time);
+bool try_get_modem_ap_version(void);
 
 #endif
