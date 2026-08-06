@@ -132,7 +132,7 @@ if(build_by_lib)
     message(STATUS "STATTUSbuild lib not build exe")
 
     # 静态库路径指向binary_deb/common_lib目录下的通用库文件
-    if(PROJECT_BUILD STREQUAL "rw350" OR PROJECT_BUILD STREQUAL "rw350r")
+    if(PROJECT_BUILD STREQUAL "rw350r")
         set(HELPER_PLATFORM "mtk")
     else()
         set(HELPER_PLATFORM "qualcomm")
@@ -204,7 +204,7 @@ elseif(NOT build_by_lib AND NOT BUILD_LIB)
                             helper_link_libraries(rolling_helper "${file}" "${CMAKE_CURRENT_SOURCE_DIR}/common_lib/libcode.a")
                         endif()
                     else()
-                        set(PROJECT_BUILD rw101 rw135 rw350 rw350r)
+                        set(PROJECT_BUILD rw101 rw135 rw350r)
                         set(OEM_BUILD dell lenovo hp)
                         foreach(project ${PROJECT_BUILD})
                             foreach(oem ${OEM_BUILD})
@@ -270,7 +270,7 @@ if (build_by_code AND (${BUILD_LIB} STREQUAL "yes"))
             COMMAND cp  -raf ${PROJECT_BINARY_DIR}/common/rolling-helper-gdbus-generated.h ${lib_path}
             COMMENT "helper service build lib successfully"
         )
-    elseif((${PROJECT_BUILD} STREQUAL "rw350") OR (${PROJECT_BUILD} STREQUAL "rw350r"))
+    elseif(${PROJECT_BUILD} STREQUAL "rw350r")
         add_custom_target(
             helper_build_lib
             COMMAND mkdir -p ${lib_path}

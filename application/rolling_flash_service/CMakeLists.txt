@@ -201,7 +201,7 @@ if (build_by_code AND BUILD_LIB)
             COMMAND cp -raf ${CMAKE_CURRENT_BINARY_DIR}/generated/rolling-helper-gdbus-generated.h ${lib_path}
             COMMENT "Flash service build lib successfully"
         )
-    elseif((${PROJECT_BUILD} STREQUAL "rw350") OR (${PROJECT_BUILD} STREQUAL "rw350r"))
+    elseif(${PROJECT_BUILD} STREQUAL "rw350r")
         add_custom_target(
             flash_build_lib
             # 创建输出目录（使用-p参数确保目录存在不会报错）
