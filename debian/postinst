@@ -16,6 +16,12 @@ set -e
 
 case "$1" in
     configure)
+    if [ -f "/opt/rolling/rolling_ma_service/rolling_ma" ]; then
+        chmod 755 /opt/rolling/rolling_ma_service/rolling_ma
+    fi
+    if [ -f "/opt/rolling/rolling_ma_service/libmodemauth.so.1.1" ]; then
+        chmod 755 /opt/rolling/rolling_ma_service/libmodemauth.so.1.1
+    fi
     if [ -d "/usr/lib/x86_64-linux-gnu/ModemManager" ]; then
         cp -raf  /opt/rolling/rolling_ma_service/fcc-unlock.d  /usr/lib/x86_64-linux-gnu/ModemManager/
         rm -rf /opt/rolling/rolling_ma_service/fcc-unlock.d

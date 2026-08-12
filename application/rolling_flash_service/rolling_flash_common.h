@@ -315,4 +315,10 @@ gboolean get_port_state(e_port_state *state);
 gboolean start_flash_timer(int time);
 bool try_get_modem_ap_version(void);
 
+/* Inhibit ModemManager on PCIe 14c3:4d75 during fastboot->normal transition */
+gboolean rolling_flash_mm_inhibit_pcie_modem(void);
+gboolean rolling_flash_mm_uninhibit_pcie_modem(void);
+/* Hold inhibit until ports stable, ScanDevices, optional MM restart, then NM ipv4 reconnect */
+gboolean rolling_flash_mm_recover_pcie_modem(void);
+
 #endif

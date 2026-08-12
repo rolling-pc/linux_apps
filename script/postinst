@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+# Ensure rolling_ma is executable after package install
+if [ -f "/opt/rolling/rolling_ma_service/rolling_ma" ]; then
+    chmod 755 /opt/rolling/rolling_ma_service/rolling_ma
+fi
+if [ -f "/opt/rolling/rolling_ma_service/libmodemauth.so.1.1" ]; then
+    chmod 755 /opt/rolling/rolling_ma_service/libmodemauth.so.1.1
+fi
+
 # Install MA fcc-unlock scripts into ModemManager
 if [ -d "/usr/lib/x86_64-linux-gnu/ModemManager" ]; then
     if [ -d "/opt/rolling/rolling_ma_service/fcc-unlock.d" ]; then
