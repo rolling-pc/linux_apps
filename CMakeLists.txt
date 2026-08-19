@@ -246,6 +246,8 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                                 WORLD_EXECUTE WORLD_READ
                                 DESTINATION "${CMAKE_INSTALL_PREFIX}/usr/share/dbus-1/system.d")
                         install(CODE "MESSAGE(\"install success!\")")
+
+                    
                         
                         set(CPACK_PACKAGE_NAME "linux-apps-${SUBDIR_M}-${SUBDIR_N}-${SUBDIR_NAME}")
                         set(CPACK_PACKAGE_VENDOR "rolling")
@@ -307,6 +309,9 @@ endforeach()
 # set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_CURRENT_BINARY_DIR}/CPackConfig_qualcomm_rw135_lenovo.cmake")
 
 include(CPack)
+
+
+
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in

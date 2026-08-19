@@ -315,14 +315,20 @@ gboolean get_port_state(e_port_state *state);
 gboolean start_flash_timer(int time);
 bool try_get_modem_ap_version(void);
 
-/*
- * Inhibit ModemManager around fastboot transitions only.
- * Exception: uninhibit_if_safe keeps hold on fastboot or without AT+MBIM.
- */
-gboolean rolling_flash_mm_inhibit_pcie_modem(void);
-gboolean rolling_flash_mm_uninhibit_pcie_modem(void);
-gboolean rolling_flash_mm_uninhibit_if_safe(const char *reason);
-/* Wait AT+MBIM settle, uninhibit, ScanDevices; restart MM only if still unmanaged */
+/* MM recover timing after fastboot->normal (see rolling_flash_common.c) */
+#define MM_PORT_POLL_MS                 500
+#define MM_PORT_WAIT_MAX_S              60
+#define MM_FASTBOOT_GONE_DEBOUNCE_MS    500
+#define MM_PORT_STABLE_MS               3000
+#define MM_MODEM_POLL_MAX               15   /* 15 * MM_PORT_POLL_MS = 7.5s */
+#define MM_MODEM_POLL_AFTER_RESTART_MAX 30   /* 30 * MM_PORT_POLL_MS = 15s */
+#define MM_RECOVER_RETRY_MAX            2
+#define MM_RECOVER_RETRY_DELAY_MS       3000
+
+void rolling_flash_mm_mark_post_fastboot_transition(void);
+void rolling_flash_mm_clear_post_fastboot_transition(void);
+gboolean rolling_flash_mm_is_post_fastboot_transition(void);
+/* Strategy A'': fastboot0 gone -> restart -> bounce-settle -> ScanDevices -> NM */
 gboolean rolling_flash_mm_recover_pcie_modem(void);
 
 #endif

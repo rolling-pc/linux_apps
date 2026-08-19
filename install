@@ -8,23 +8,18 @@ CONFIG_SERVICE_APP_PATH="${APP_DIR}/rolling_config_service/rolling_config*"
 FLASH_SERVICE_APP_PATH="${APP_DIR}/rolling_flash_service/rolling_flash*"
 FLASH_SERVICE_APP_DIR="${APP_DIR}/rolling_flash_service"
 HELPER_SERVICE_APP_PATH="${APP_DIR}/rolling_helper_service/"
+MA_SERVICE_COMMON_LIB="${basedir}/binary_deb/common_lib"
 MA_SERVICE_PATH_APP_DIR="${BUILD_DIR}/../application/rolling_ma_service"
 MA_SERVICE_PATH_APP_PATH="${BUILD_DIR}/application/rolling_ma_service/rolling_ma"
-MA_SERVICE_COMMON_LIB="${basedir}/binary_deb/common_lib"
-
 
 DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
 DEB_SOFT_DIR="${DEB_SOFT_DIRS}/opt/rolling"
 DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_config_service"
 DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
-
-
 DEB_HELPER_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_helper_service"
 DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
 
 OEMUSBID_LIST=( 14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215 )
-
-
 
 BUILD_HELPER=$(grep -o 'set(BUILD_HELPER "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 BUILD_DOWN_TOOL=$(grep -o 'set(BUILD_DOWN_TOOL "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
@@ -39,8 +34,6 @@ echo "build down tool package ${BUILD_DOWN_TOOL}"
 echo "build flash package ${BUILD_FLASH}"
 echo "build config package ${BUILD_CONFIG}"
 echo "build ma package ${BUILD_MA}"
-
-
 
 function operation_menu_select()
 {
@@ -273,17 +266,16 @@ LABEL=\"mm_rolling_linux_apps_port_types_end\"
 " > $1/99-mm-rolling-linux-apps-port-types.rules
     chmod 755 $1/99-mm-rolling-linux-apps-port-types.rules
 }
+
 function create_fcc_unlock()
 {
     for s in ${OEMUSBID_LIST[@]}
     do
-        # 确定要执行的二进制文件路径
         local binary_path="/opt/rolling/rolling_ma_service/rolling_ma"
         if [ "lenovo" == "${OEM_BUILD}" ]; then
             binary_path="/opt/rolling/rolling_ma_service/libmodemauth.so.1.1"
         fi
 
-        # 创建fcc-unlock脚本
         cat > "$1/$s" << EOF
 #!/bin/sh
 
@@ -299,7 +291,6 @@ exit $?
 EOF
         chmod 755 "$1/$s"
     done
-
 }
 
 function create_and_install()
