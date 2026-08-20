@@ -322,13 +322,16 @@ bool try_get_modem_ap_version(void);
 #define MM_PORT_STABLE_MS               3000
 #define MM_MODEM_POLL_MAX               15   /* 15 * MM_PORT_POLL_MS = 7.5s */
 #define MM_MODEM_POLL_AFTER_RESTART_MAX 30   /* 30 * MM_PORT_POLL_MS = 15s */
+#define MM_MODEM_STATE_WAIT_MAX_S       30   /* wait for mmcli state enabled/registered */
 #define MM_RECOVER_RETRY_MAX            2
 #define MM_RECOVER_RETRY_DELAY_MS       3000
 
 void rolling_flash_mm_mark_post_fastboot_transition(void);
 void rolling_flash_mm_clear_post_fastboot_transition(void);
 gboolean rolling_flash_mm_is_post_fastboot_transition(void);
-/* Strategy A'': fastboot0 gone -> restart -> bounce-settle -> ScanDevices -> NM */
+void rolling_flash_mm_on_fastboot_flash_start(void);
+gboolean rolling_flash_mm_stop_for_fastboot(void);
+/* Strategy C: fastboot stop -> bounce-settle -> start -> NM */
 gboolean rolling_flash_mm_recover_pcie_modem(void);
 
 #endif

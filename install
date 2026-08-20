@@ -271,11 +271,13 @@ function create_fcc_unlock()
 {
     for s in ${OEMUSBID_LIST[@]}
     do
+        # 确定要执行的二进制文件路径
         local binary_path="/opt/rolling/rolling_ma_service/rolling_ma"
         if [ "lenovo" == "${OEM_BUILD}" ]; then
             binary_path="/opt/rolling/rolling_ma_service/libmodemauth.so.1.1"
         fi
 
+        # 创建fcc-unlock脚本
         cat > "$1/$s" << EOF
 #!/bin/sh
 
