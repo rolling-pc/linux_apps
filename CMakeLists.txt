@@ -37,6 +37,7 @@ option(BUILD_FLASH "build flash" "")
 option(BUILD_CONFIG "build config" "")
 option(BUILD_MA "build ma" "")
 option(BUILD_BY_LIB "use prebuilt libs" "")
+set(DISTRO_TAG "" CACHE STRING "Debian package release tag, e.g. ubuntu22.04 or ubuntu26.04")
 
 set(build_deb FALSE)
 set(build_rpm FALSE)
@@ -161,12 +162,35 @@ set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
 set(outer_loop_exit FALSE)
 
-set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
+if (${PROJECT_BUILD} MATCHES "350")
+    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../no_ma_script")
+else ()
+    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
+endif ()
 
 set(PROJECT_DEB_CONTROL_PREINST "${PROJECT_DEB_CONTROL_PATH}/preinst")
 set(PROJECT_DEB_CONTROL_POSTINST "${PROJECT_DEB_CONTROL_PATH}/postinst")
 set(PROJECT_DEB_CONTROL_PRERM "${PROJECT_DEB_CONTROL_PATH}/prerm")
 set(PROJECT_DEB_CONTROL_POSTRM "${PROJECT_DEB_CONTROL_PATH}/postrm")
+
+macro(rolling_linux_configure_deb_package)
+    if(DISTRO_TAG)
+        set(CPACK_DEBIAN_PACKAGE_RELEASE "${DISTRO_TAG}")
+        message(STATUS "Debian package release tag: ${DISTRO_TAG}")
+    endif()
+
+    if(DISTRO_TAG STREQUAL "ubuntu26.04")
+        # Ubuntu 26.04: libxml2 SONAME -> libxml2.so.16 (package libxml2-16),
+        # fwupd runtime library -> libfwupd3
+        set(_rolling_deb_runtime_depends
+            "libxml2-16, libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
+    else()
+        set(_rolling_deb_runtime_depends
+            "libxml2 (>= 2.9.0), libglib2.0-0, libfwupd2, modemmanager, libmbim-glib4, libudev1")
+    endif()
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "${_rolling_deb_runtime_depends}")
+    message(STATUS "Debian package depends: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
+endmacro()
 
 # can only build one deb
 file(GLOB SUBDIRECTORIES "${CMAKE_SOURCE_DIR}/application/rolling_helper_service/*")
@@ -261,6 +285,7 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                             set(CPACK_DEBIAN_PACKAGE_PRIORITY "standard")
                             set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
                             set(CPACK_DEBIAN_PACKAGE_MAINTAINER "rolling")
+                            rolling_linux_configure_deb_package()
                             set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
                                 "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM}")
                         elseif (${BUILD_RPM} STREQUAL "yes")
@@ -288,6 +313,7 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                             set(CPACK_DEBIAN_PACKAGE_PRIORITY "standard")
                             set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
                             set(CPACK_DEBIAN_PACKAGE_MAINTAINER "rolling")
+                            rolling_linux_configure_deb_package()
                             set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
                                 "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM}")
                         endif()

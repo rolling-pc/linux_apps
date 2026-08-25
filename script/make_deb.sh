@@ -11,6 +11,13 @@ oem_list=("lenovo" "generic" "dell")
 # 用户可以直接修改这里的值来控制编译方式
 build_by_lib=1
 
+function cmake_distro_tag_args()
+{
+    if [ -n "${DISTRO_TAG:-}" ]; then
+        echo "-DDISTRO_TAG=${DISTRO_TAG}"
+    fi
+}
+
 function make_project()
 {
     current_path="$PROJECT_ROOT"
@@ -20,7 +27,7 @@ function make_project()
             # 当build_by_lib为1且common_lib目录存在时，只清除binary_deb中的其他文件，保留common_lib目录
             echo "build_by_lib为1且common_lib目录存在，保留common_lib目录"
             # 列出binary_deb中的所有文件和目录，排除common_lib，然后删除
-            find binary_deb -mindepth 1 -maxdepth 1 -not -name "common_lib" -exec rm -rf {} \;
+            find binary_deb -mindepth 1 -maxdepth 1 -not -name "common_lib" -not -name "common_lib-*" -exec rm -rf {} \;
         else
             # 其他情况，完全清除binary_deb目录
             rm -rf binary_deb
@@ -30,11 +37,13 @@ function make_project()
         # 如果binary_deb目录不存在，则创建它
         mkdir ${current_path}/binary_deb
     fi
+    local distro_tag_args
+    distro_tag_args=$(cmake_distro_tag_args)
     if [ $# -eq 2 ]; then
         if [ -d "build" ]; then
             rm -rf build
         fi
-        cmake -S . -B build -DPROJECT_BUILD=$1 -DOEM_BUILD=$2 -DBUILD_BY_LIB=$build_by_lib
+        cmake -S . -B build -DPROJECT_BUILD=$1 -DOEM_BUILD=$2 -DBUILD_BY_LIB=$build_by_lib ${distro_tag_args}
         cmake --build build
         cd build
         cpack
@@ -45,9 +54,9 @@ function make_project()
             rm -rf build
         fi
         if [ "deb" == "$1" ]; then
-            cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=$2 -DOEM_BUILD=$3 -DBUILD_BY_LIB=$build_by_lib
+            cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=$2 -DOEM_BUILD=$3 -DBUILD_BY_LIB=$build_by_lib ${distro_tag_args}
         elif [ "rpm" == "$1" ]; then
-            cmake -S . -B build -DBUILD_RPM=yes -DPROJECT_BUILD=$2 -DOEM_BUILD=$3 -DBUILD_BY_LIB=$build_by_lib
+            cmake -S . -B build -DBUILD_RPM=yes -DPROJECT_BUILD=$2 -DOEM_BUILD=$3 -DBUILD_BY_LIB=$build_by_lib ${distro_tag_args}
         fi
         cmake --build build
         cd build
@@ -65,14 +74,14 @@ function make_project()
                 if [ -d "build" ]; then
                     rm -rf build
                 fi
-                cmake -S . -B build -DPROJECT_BUILD=${project} -DOEM_BUILD=${oem} -DBUILD_BY_LIB=$build_by_lib
+                cmake -S . -B build -DPROJECT_BUILD=${project} -DOEM_BUILD=${oem} -DBUILD_BY_LIB=$build_by_lib ${distro_tag_args}
                 cmake --build build
                 cd build
                 cpack
                 mv *.deb ${current_path}/binary_deb/
                 cd ../
 
-                cmake -S . -B build -DBUILD_PACKAGE=rpm -DPROJECT_BUILD=${project} -DOEM_BUILD=${oem} -DBUILD_BY_LIB=$build_by_lib
+                cmake -S . -B build -DBUILD_PACKAGE=rpm -DPROJECT_BUILD=${project} -DOEM_BUILD=${oem} -DBUILD_BY_LIB=$build_by_lib ${distro_tag_args}
                 cmake --build build
                 cd build
                 cpack

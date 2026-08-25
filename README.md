@@ -42,6 +42,25 @@ The rolling_flash, rolling_config, and rolling_helper binaries are LGPL 2.0.<br>
     `./script/make_deb.sh deb rw350r dell`<br>
     `./script/make_deb.sh rpm rw350r dell`<br>
 
+### 2.1 Multi-distro deb (Docker, by-lib)
+
+This repo only has prebuilt static libs. Build libs in **opensrc** Docker first, then package here.
+
+```bash
+# opensrc: build 26.04 libs (+ rolling_ma)
+cd /path/to/dev_linux_app/.../linux-apps
+./script/build_multi_distro.sh lib rw350r dell resolute
+cp -a binary_deb/common_lib-ubuntu26.04/* \
+  /path/to/upstream_github/linux_apps/binary_deb/common_lib-ubuntu26.04/
+
+# upstream: package 26.04 deb inside Docker (always by-lib)
+cd /path/to/upstream_github/linux_apps
+./script/build_multi_distro.sh deb rw350r dell resolute
+# skip smoke: add --no-smoke
+```
+
+Library Ubuntu version must match the deb target (22.04 libs for jammy, 26.04 for resolute). Do not link 26.04 libs on a 22.04 host.
+
 ## 3. If using systemd
 - Reload config:<br>
   sudo systemctl daemon-reload

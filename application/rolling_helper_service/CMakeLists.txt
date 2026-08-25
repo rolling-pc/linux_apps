@@ -23,21 +23,6 @@ set(HELPER_VERSION_STRING ${HELPER_MAJOR_VERSION}.${HELPER_MINOR_VERSION}.${HELP
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
                 "./version.h")
 
-file(GLOB HELPER_DIR "./*")
-foreach(SUBDIRS ${HELPER_DIR})
-    get_filename_component(SUBDIR_M ${SUBDIRS} NAME)
-    if (${SUBDIR_M} STREQUAL "common")
-        # 只有当build_by_lib为0时，才添加common子目录
-        if(NOT build_by_lib)
-            add_subdirectory(./common)
-        endif()
-        break()
-    elseif(${SUBDIR_M} STREQUAL "common_lib")
-        include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common_lib)
-        break()
-    endif()
-endforeach()
-
 set(CMAKE_C_COMPILER gcc)
 set(HELPER_PREPROCESSOR_DEF "-fstack-protector-strong -O2 -Wformat -Wformat-security  -fPIC -std=gnu99")
 find_package(PkgConfig REQUIRED)
@@ -61,11 +46,26 @@ set(helper_source_files rolling_helper_main.c)
 
 set(build_by_code 1)
 
-# 检查BUILD_BY_LIB参数，将其转换为build_by_lib变量
+# Resolve BUILD_BY_LIB before deciding whether to add ./common (upstream may lack vendor trees).
 if(DEFINED BUILD_BY_LIB)
     set(build_by_lib ${BUILD_BY_LIB})
     message(STATUS "BUILD_BY_LIB parameter: ${BUILD_BY_LIB}")
 endif()
+
+file(GLOB HELPER_DIR "./*")
+foreach(SUBDIRS ${HELPER_DIR})
+    get_filename_component(SUBDIR_M ${SUBDIRS} NAME)
+    if (${SUBDIR_M} STREQUAL "common")
+        # 只有当build_by_lib为0时，才添加common子目录
+        if(NOT build_by_lib)
+            add_subdirectory(./common)
+        endif()
+        break()
+    elseif(${SUBDIR_M} STREQUAL "common_lib")
+        include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common_lib)
+        break()
+    endif()
+endforeach()
 
 # 当BUILD_LIB为yes时，自动设置build_by_code为1
 if(${BUILD_LIB} STREQUAL "yes")

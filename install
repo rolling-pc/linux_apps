@@ -12,14 +12,50 @@ MA_SERVICE_COMMON_LIB="${basedir}/binary_deb/common_lib"
 MA_SERVICE_PATH_APP_DIR="${BUILD_DIR}/../application/rolling_ma_service"
 MA_SERVICE_PATH_APP_PATH="${BUILD_DIR}/application/rolling_ma_service/rolling_ma"
 
+function resolve_rolling_ma_source()
+{
+    local candidate=""
+    local distro_tag=""
+
+    if [ -f "${BUILD_DIR}/CMakeCache.txt" ]; then
+        distro_tag=$(grep -E '^DISTRO_TAG:STRING=' "${BUILD_DIR}/CMakeCache.txt" 2>/dev/null | cut -d= -f2)
+    fi
+
+    if [ -f "${MA_SERVICE_PATH_APP_PATH}" ]; then
+        candidate="${MA_SERVICE_PATH_APP_PATH}"
+    elif [ -n "${distro_tag}" ] && [ -f "${basedir}/binary_deb/common_lib-${distro_tag}/rolling_ma" ]; then
+        candidate="${basedir}/binary_deb/common_lib-${distro_tag}/rolling_ma"
+    elif [ -f "${MA_SERVICE_COMMON_LIB}/rolling_ma" ]; then
+        candidate="${MA_SERVICE_COMMON_LIB}/rolling_ma"
+    fi
+
+    if [ -z "${candidate}" ]; then
+        echo "ERROR: rolling_ma not found for deb packaging." >&2
+        echo "  expected build output: ${MA_SERVICE_PATH_APP_PATH}" >&2
+        if [ -n "${distro_tag}" ]; then
+            echo "  expected versioned lib: ${basedir}/binary_deb/common_lib-${distro_tag}/rolling_ma" >&2
+        fi
+        echo "  expected common lib: ${MA_SERVICE_COMMON_LIB}/rolling_ma" >&2
+        echo "  sync matching Ubuntu rolling_ma from opensrc Docker lib build." >&2
+        exit 1
+    fi
+
+    echo "${candidate}"
+}
+
+
 DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
 DEB_SOFT_DIR="${DEB_SOFT_DIRS}/opt/rolling"
 DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_config_service"
 DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
+
+
 DEB_HELPER_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_helper_service"
 DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
 
 OEMUSBID_LIST=( 14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215 )
+
+
 
 BUILD_HELPER=$(grep -o 'set(BUILD_HELPER "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 BUILD_DOWN_TOOL=$(grep -o 'set(BUILD_DOWN_TOOL "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
@@ -34,6 +70,8 @@ echo "build down tool package ${BUILD_DOWN_TOOL}"
 echo "build flash package ${BUILD_FLASH}"
 echo "build config package ${BUILD_CONFIG}"
 echo "build ma package ${BUILD_MA}"
+
+
 
 function operation_menu_select()
 {
@@ -93,15 +131,10 @@ function copy_file_to_deb_directory()
             cp -f ${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1 ${DEB_MA_SERVICE_DIR}/
             chmod 755 ${DEB_MA_SERVICE_DIR}/libmodemauth.so.1.1
         else
-            if [ -f "${MA_SERVICE_PATH_APP_PATH}" ]; then
-                cp -f ${MA_SERVICE_PATH_APP_PATH} ${DEB_MA_SERVICE_DIR}/rolling_ma
-            elif [ -f "${MA_SERVICE_COMMON_LIB}/rolling_ma" ]; then
-                cp -f ${MA_SERVICE_COMMON_LIB}/rolling_ma ${DEB_MA_SERVICE_DIR}/rolling_ma
-            else
-                echo "ERROR: rolling_ma not found in build dir or binary_deb/common_lib" >&2
-                exit 1
-            fi
+            rolling_ma_src=$(resolve_rolling_ma_source)
+            cp -f "${rolling_ma_src}" ${DEB_MA_SERVICE_DIR}/rolling_ma
             chmod 755 ${DEB_MA_SERVICE_DIR}/rolling_ma
+            echo "packaged rolling_ma from ${rolling_ma_src}"
         fi
         mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
         create_fcc_unlock ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
@@ -266,7 +299,6 @@ LABEL=\"mm_rolling_linux_apps_port_types_end\"
 " > $1/99-mm-rolling-linux-apps-port-types.rules
     chmod 755 $1/99-mm-rolling-linux-apps-port-types.rules
 }
-
 function create_fcc_unlock()
 {
     for s in ${OEMUSBID_LIST[@]}
@@ -293,6 +325,7 @@ exit $?
 EOF
         chmod 755 "$1/$s"
     done
+
 }
 
 function create_and_install()

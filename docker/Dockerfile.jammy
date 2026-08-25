@@ -1,0 +1,21 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    build-essential \
+    pkg-config \
+    libglib2.0-dev \
+    libxml2-dev \
+    libudev-dev \
+    libmbim-glib-dev \
+    libdbus-1-dev \
+    libmm-glib-dev \
+    libfwupd-dev \
+    fastboot \
+    ca-certificates \
+    && ln -sf libudev.pc /usr/lib/x86_64-linux-gnu/pkgconfig/udev.pc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace

@@ -17,9 +17,15 @@ cmake_minimum_required(VERSION 3.6)
 project(common_func LANGUAGES C)
 add_subdirectory(./at_channel code)
 
+# Full vendor trees are available in opensrc; upstream_github may only ship stubs.
+# Skip when building by prebuilt lib, or when vendor CMakeLists.txt is absent.
 if(NOT ${BUILD_LIB} STREQUAL "yes")
-    add_subdirectory(../qualcomm qualcomm_proj)
-    add_subdirectory(../mtk mtk_proj)
+    if(NOT build_by_lib AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../qualcomm/CMakeLists.txt")
+        add_subdirectory(../qualcomm qualcomm_proj)
+    endif()
+    if(NOT build_by_lib AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../mtk/CMakeLists.txt")
+        add_subdirectory(../mtk mtk_proj)
+    endif()
 endif()
 
 set(CMAKE_C_COMPILER gcc)
