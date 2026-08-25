@@ -162,11 +162,8 @@ set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
 set(outer_loop_exit FALSE)
 
-if (${PROJECT_BUILD} MATCHES "350")
-    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../no_ma_script")
-else ()
-    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
-endif ()
+# Always use script/ control files (Dell rw350r includes MA; no_ma_script is not used here).
+set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
 
 set(PROJECT_DEB_CONTROL_PREINST "${PROJECT_DEB_CONTROL_PATH}/preinst")
 set(PROJECT_DEB_CONTROL_POSTINST "${PROJECT_DEB_CONTROL_PATH}/postinst")
