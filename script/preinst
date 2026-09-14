@@ -22,19 +22,75 @@ SERVICE_FILES=(
     "/lib/systemd/system/ModemManager.service"
     "/usr/lib/systemd/system/ModemManager.service"
 )
-PARAM="--test-low-power-suspend-resume"
+NEED_RELOAD=0
 
-for SERVICE_FILE in "${SERVICE_FILES[@]}"; do
-    if [[ -f "$SERVICE_FILE" ]]; then
-        if grep -q -- "$PARAM" "$SERVICE_FILE"; then
-            sed -i "s/$PARAM//g" "$SERVICE_FILE"
-            echo "Removed '$PARAM' from $SERVICE_FILE"
-
-            systemctl daemon-reload
-            systemctl restart ModemManager.service
-            echo "will restart ModemManager"
+# Align with rolling_flash_prepare.c:
+# 1) always ensure --test-quick-suspend-resume (widely supported)
+# 2) only add --test-low-power-suspend-resume when ModemManager advertises it;
+#    otherwise remove any leftover (matches older packages that stripped it).
+mm_help_supports() {
+    local param="$1"
+    local mm_bin=""
+    for mm_bin in /usr/sbin/ModemManager /usr/bin/ModemManager ModemManager; do
+        if command -v "${mm_bin}" >/dev/null 2>&1 || [[ -x "${mm_bin}" ]]; then
+            if "${mm_bin}" -h 2>/dev/null | grep -q -- "${param}"; then
+                return 0
+            fi
+            if "${mm_bin}" --help 2>/dev/null | grep -q -- "${param}"; then
+                return 0
+            fi
         fi
-    else
-        echo "service $SERVICE_FILE not exit"
-    fi
-done
+    done
+    return 1
+}
+
+ensure_mm_param() {
+    local PARAM="$1"
+    local SERVICE_FILE
+    for SERVICE_FILE in "${SERVICE_FILES[@]}"; do
+        if [[ -f "$SERVICE_FILE" ]]; then
+            if ! grep -q -- "$PARAM" "$SERVICE_FILE"; then
+                if grep -qE '^ExecStart=.*/ModemManager( |$)' "$SERVICE_FILE"; then
+                    sed -i -E "s|^(ExecStart=.*/ModemManager)(.*)|\1 ${PARAM}\2|" "$SERVICE_FILE"
+                    sed -i -E 's|^(ExecStart=.*ModemManager) +|\1 |; s|  +| |g' "$SERVICE_FILE"
+                    echo "Added '$PARAM' to $SERVICE_FILE"
+                    NEED_RELOAD=1
+                else
+                    echo "skip $SERVICE_FILE: no ModemManager ExecStart line"
+                fi
+            else
+                echo "'$PARAM' already present in $SERVICE_FILE"
+            fi
+        else
+            echo "service $SERVICE_FILE not exit"
+        fi
+    done
+}
+
+remove_mm_param() {
+    local PARAM="$1"
+    local SERVICE_FILE
+    for SERVICE_FILE in "${SERVICE_FILES[@]}"; do
+        if [[ -f "$SERVICE_FILE" ]] && grep -q -- "$PARAM" "$SERVICE_FILE"; then
+            sed -i -E "s/[[:space:]]*${PARAM}//g" "$SERVICE_FILE"
+            sed -i -E 's|^(ExecStart=.*ModemManager) +|\1 |; s|  +| |g' "$SERVICE_FILE"
+            echo "Removed '$PARAM' from $SERVICE_FILE"
+            NEED_RELOAD=1
+        fi
+    done
+}
+
+ensure_mm_param "--test-quick-suspend-resume"
+
+if mm_help_supports "--test-low-power-suspend-resume"; then
+    ensure_mm_param "--test-low-power-suspend-resume"
+else
+    echo "--test-low-power-suspend-resume not supported by ModemManager; stripping if present"
+    remove_mm_param "--test-low-power-suspend-resume"
+fi
+
+if [[ "$NEED_RELOAD" -eq 1 ]]; then
+    systemctl daemon-reload
+    systemctl restart ModemManager.service
+    echo "will restart ModemManager"
+fi

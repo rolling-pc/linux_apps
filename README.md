@@ -36,7 +36,7 @@ The rolling_flash, rolling_config, and rolling_helper binaries are LGPL 2.0.<br>
     `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350r -DOEM_BUILD=lenovo -DBUILD_BY_LIB=1` <br>
     Example (rw350r dell):<br>
     `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350r -DOEM_BUILD=dell -DBUILD_BY_LIB=1` <br>
-    Or use script:<br>
+    Or use script (opensrc always uses prebuilt `binary_deb/common_lib`, equivalent to `-DBUILD_BY_LIB=1`):<br>
     `./script/make_deb.sh deb rw350r lenovo`<br>
     `./script/make_deb.sh rpm rw350r lenovo`<br>
     `./script/make_deb.sh deb rw350r dell`<br>

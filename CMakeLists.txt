@@ -36,6 +36,7 @@ option(BUILD_DOWN_TOOL "build down tool" "")
 option(BUILD_FLASH "build flash" "")
 option(BUILD_CONFIG "build config" "")
 option(BUILD_MA "build ma" "")
+option(BUILD_MA_LIB "build ma lib artifact" "")
 option(BUILD_BY_LIB "use prebuilt libs" "")
 set(DISTRO_TAG "" CACHE STRING "Debian package release tag, e.g. ubuntu22.04 or ubuntu26.04")
 
@@ -116,7 +117,12 @@ endif()
 if("${BUILD_MA}" STREQUAL "")
     set(BUILD_MA ${DEFAULT_BUILD_MA})
 endif()
-
+if("${BUILD_MA_LIB}" STREQUAL "")
+    set(BUILD_MA_LIB ${DEFAULT_BUILD_MA_LIB})
+endif()
+if("${BUILD_MA_LIB}" STREQUAL "" AND "${BUILD_MA}" STREQUAL "yes")
+    set(BUILD_MA_LIB "yes")
+endif()
 
 # 处理BUILD_DEB和BUILD_RPM
 if(build_deb)
@@ -137,6 +143,7 @@ message("build down tool: ${BUILD_DOWN_TOOL}")
 message("build flash: ${BUILD_FLASH}")
 message("build config: ${BUILD_CONFIG}")
 message("build ma: ${BUILD_MA}")
+message("build ma lib: ${BUILD_MA_LIB}")
 
 # 检查是否同时构建deb和rpm
 if("${BUILD_DEB}" STREQUAL "yes" AND "${BUILD_RPM}" STREQUAL "yes")
@@ -162,8 +169,15 @@ set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
 set(outer_loop_exit FALSE)
 
-# Always use script/ control files (Dell rw350r includes MA; no_ma_script is not used here).
-set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
+# Dell rw350r has BUILD_MA=yes and ships rolling_ma + fcc-unlock.d; use script/
+# maintainer scripts so postinst installs unlock helpers into ModemManager.
+# Lenovo rw350r keeps BUILD_MA=no and uses no_ma_script/.
+if ("${BUILD_MA}" STREQUAL "yes")
+    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
+else ()
+    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../no_ma_script")
+endif ()
+message(STATUS "Debian control scripts: ${PROJECT_DEB_CONTROL_PATH} (BUILD_MA=${BUILD_MA})")
 
 set(PROJECT_DEB_CONTROL_PREINST "${PROJECT_DEB_CONTROL_PATH}/preinst")
 set(PROJECT_DEB_CONTROL_POSTINST "${PROJECT_DEB_CONTROL_PATH}/postinst")
@@ -176,14 +190,15 @@ macro(rolling_linux_configure_deb_package)
         message(STATUS "Debian package release tag: ${DISTRO_TAG}")
     endif()
 
+    # rolling_flash links libfwupd.so.3 on Ubuntu 22.04/24.04/26.04 (package libfwupd3).
+    # Declaring libfwupd2 leaves .so.3 unresolved at runtime (service exit 127).
     if(DISTRO_TAG STREQUAL "ubuntu26.04")
-        # Ubuntu 26.04: libxml2 SONAME -> libxml2.so.16 (package libxml2-16),
-        # fwupd runtime library -> libfwupd3
+        # Ubuntu 26.04: libxml2 SONAME -> libxml2.so.16 (package libxml2-16)
         set(_rolling_deb_runtime_depends
             "libxml2-16, libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
     else()
         set(_rolling_deb_runtime_depends
-            "libxml2 (>= 2.9.0), libglib2.0-0, libfwupd2, modemmanager, libmbim-glib4, libudev1")
+            "libxml2 (>= 2.9.0), libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
     endif()
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "${_rolling_deb_runtime_depends}")
     message(STATUS "Debian package depends: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")

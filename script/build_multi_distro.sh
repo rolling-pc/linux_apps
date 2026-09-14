@@ -1,26 +1,24 @@
 #!/bin/bash
-# Build linux-apps deb inside Ubuntu version-specific Docker images (by-lib only).
+# Build linux-apps static libraries or deb.
 #
-# upstream_github 仅有预编译静态库 + 薄封装源码，不能在容器内全量编 lib。
-# 静态库请先在 opensrc 用同版本 Docker 编好，再同步到 binary_deb/common_lib-<tag>/。
+# Rule:
+#   Ubuntu 26.04 (resolute) -> build inside Docker
+#   Ubuntu 22.04 / 24.04    -> build on host via ./script/make_deb.sh
 #
 # Usage:
-#   ./script/build_multi_distro.sh deb <project> <oem> <distro> [--no-smoke]
+#   ./script/build_multi_distro.sh lib  <project> <oem> <distro>
+#   ./script/build_multi_distro.sh deb  <project> <oem> <distro> [--by-lib] [--no-smoke]
 #
 # Examples:
-#   # 1) opensrc 编 26.04 库
-#   cd /path/to/dev_linux_app/.../linux-apps
-#   ./script/build_multi_distro.sh lib rw350r dell resolute
-#   cp -a binary_deb/common_lib-ubuntu26.04/* \
-#     /path/to/upstream_github/linux_apps/binary_deb/common_lib-ubuntu26.04/
-#
-#   # 2) upstream 打 26.04 deb
-#   ./script/build_multi_distro.sh deb rw350r dell resolute
+#   ./script/build_multi_distro.sh deb  rw350r dell noble          # host make_deb.sh
+#   ./script/build_multi_distro.sh deb  rw350r dell jammy          # host make_deb.sh
+#   ./script/build_multi_distro.sh deb  rw350r dell resolute       # Docker
+#   ./script/build_multi_distro.sh lib  rw350r dell resolute       # Docker
 #
 # Distro aliases:
-#   jammy     -> ubuntu:22.04
-#   noble     -> ubuntu:24.04
-#   resolute  -> ubuntu:26.04
+#   jammy     -> ubuntu22.04 (host)
+#   noble     -> ubuntu24.04 (host)
+#   resolute  -> ubuntu26.04 (docker)
 
 set -euo pipefail
 
@@ -32,46 +30,46 @@ PKG_TYPE="${1:-}"
 PROJECT="${2:-}"
 OEM="${3:-}"
 DISTRO="${4:-}"
-# upstream 只能 by-lib；保留 --by-lib 兼容 opensrc 命令习惯
-BUILD_BY_LIB=1
+BUILD_BY_LIB=0
 RUN_SMOKE=1
+USE_DOCKER=0
 
 usage() {
     cat <<EOF
 Usage:
-  $0 deb <project> <oem> <distro> [--no-smoke]
+  $0 lib <project> <oem> <distro>
+  $0 deb <project> <oem> <distro> [--by-lib] [--no-smoke]
 
 Distro values:
-  jammy     Ubuntu 22.04  -> common_lib-ubuntu22.04/
-  noble     Ubuntu 24.04  -> common_lib-ubuntu24.04/
-  resolute  Ubuntu 26.04  -> common_lib-ubuntu26.04/
+  jammy     Ubuntu 22.04  -> host ./script/make_deb.sh  (common_lib-ubuntu22.04/)
+  noble     Ubuntu 24.04  -> host ./script/make_deb.sh  (common_lib-ubuntu24.04/)
+  resolute  Ubuntu 26.04  -> Docker                     (common_lib-ubuntu26.04/)
 
-upstream_github workflow:
-  1. In opensrc: ./script/build_multi_distro.sh lib rw350r dell resolute
-  2. cp -a opensrc/binary_deb/common_lib-ubuntu26.04/* \\
-         upstream/binary_deb/common_lib-ubuntu26.04/
-  3. In upstream: $0 deb rw350r dell resolute
-
-Note: 'lib' is not supported here (no full sources). Build libs in opensrc.
+Examples:
+  $0 deb rw350r dell noble
+  $0 deb rw350r dell resolute --by-lib
 EOF
 }
 
 resolve_distro() {
     case "$1" in
-        jammy)
+        jammy|ubuntu22.04|22.04)
             DOCKERFILE="Dockerfile.jammy"
             BASE_IMAGE="ubuntu:22.04"
             DISTRO_TAG="ubuntu22.04"
+            USE_DOCKER=0
             ;;
-        noble)
+        noble|ubuntu24.04|24.04)
             DOCKERFILE="Dockerfile.noble"
             BASE_IMAGE="ubuntu:24.04"
             DISTRO_TAG="ubuntu24.04"
+            USE_DOCKER=0
             ;;
         resolute|ubuntu26.04|26.04)
             DOCKERFILE="Dockerfile.resolute"
             BASE_IMAGE="ubuntu:26.04"
             DISTRO_TAG="ubuntu26.04"
+            USE_DOCKER=1
             ;;
         *)
             echo "Unsupported distro: $1" >&2
@@ -94,19 +92,8 @@ if [[ -z "$PKG_TYPE" ]] || [[ -z "$PROJECT" ]] || [[ -z "$OEM" ]] || [[ -z "$DIS
     exit 1
 fi
 
-if [[ "$PKG_TYPE" == "lib" ]]; then
-    echo "ERROR: upstream_github cannot build static libraries (sources stripped)." >&2
-    echo "Build libs in opensrc, then sync:" >&2
-    echo "  cd /path/to/dev_linux_app/.../linux-apps" >&2
-    echo "  ./script/build_multi_distro.sh lib ${PROJECT} ${OEM} ${DISTRO}" >&2
-    echo "  mkdir -p ${PROJECT_ROOT}/binary_deb/common_lib-\${DISTRO_TAG}" >&2
-    echo "  cp -a binary_deb/common_lib-\${DISTRO_TAG}/* \\" >&2
-    echo "    ${PROJECT_ROOT}/binary_deb/common_lib-\${DISTRO_TAG}/" >&2
-    exit 1
-fi
-
-if [[ "$PKG_TYPE" != "deb" ]]; then
-    echo "Unknown command: $PKG_TYPE (expected deb)" >&2
+if [[ "$PKG_TYPE" != "lib" && "$PKG_TYPE" != "deb" ]]; then
+    echo "Unknown command: $PKG_TYPE (expected lib or deb)" >&2
     usage
     exit 1
 fi
@@ -116,33 +103,25 @@ resolve_distro "$DISTRO"
 IMAGE_NAME="rolling-linux-apps-build:${DISTRO_TAG}"
 SMOKE_IMAGE_NAME="rolling-linux-apps-smoke:${DISTRO_TAG}"
 
-echo "==> Building image ${IMAGE_NAME} from ${DOCKERFILE}"
-docker build -f "${DOCKER_DIR}/${DOCKERFILE}" -t "${IMAGE_NAME}" "${DOCKER_DIR}"
-
 prepare_common_lib_for_by_lib() {
-    mkdir -p "${PROJECT_ROOT}/binary_deb"
+    if [[ "${BUILD_BY_LIB}" -ne 1 ]]; then
+        return 0
+    fi
 
-    # Prefer versioned dir; fall back to plain common_lib if it already has artifacts.
     if [[ ! -d "${LIB_OUTPUT_DIR}" ]]; then
-        if [[ -d "${PROJECT_ROOT}/binary_deb/common_lib" ]]; then
-            echo "==> ${LIB_OUTPUT_DIR} missing; seeding from binary_deb/common_lib"
-            cp -a "${PROJECT_ROOT}/binary_deb/common_lib" "${LIB_OUTPUT_DIR}"
-        else
-            echo "ERROR: ${LIB_OUTPUT_DIR} not found." >&2
-            echo "Sync opensrc libs first, e.g.:" >&2
-            echo "  cp -a <opensrc>/binary_deb/common_lib-${DISTRO_TAG}/* ${LIB_OUTPUT_DIR}/" >&2
-            exit 1
-        fi
+        echo "ERROR: ${LIB_OUTPUT_DIR} not found." >&2
+        echo "Run first: $0 lib ${PROJECT} ${OEM} ${DISTRO}" >&2
+        exit 1
     fi
 
     if [[ "${PROJECT}" == "rw350r" && "${OEM}" == "dell" ]] && [[ ! -f "${LIB_OUTPUT_DIR}/rolling_ma" ]]; then
         echo "ERROR: ${LIB_OUTPUT_DIR}/rolling_ma not found." >&2
-        echo "rolling_ma must be built in opensrc Docker (${DISTRO_TAG}) and synced here." >&2
+        echo "rolling_ma must be built in the same Ubuntu version as the deb target." >&2
+        echo "Run first: $0 lib ${PROJECT} ${OEM} ${DISTRO}" >&2
         exit 1
     fi
 
     echo "==> Will use prebuilt libs from ${LIB_OUTPUT_DIR}"
-    ls -la "${LIB_OUTPUT_DIR}"
 }
 
 verify_rolling_ma_for_rw350r_dell() {
@@ -153,16 +132,20 @@ verify_rolling_ma_for_rw350r_dell() {
     local ma_path="$1"
     if [[ ! -f "${ma_path}" ]]; then
         echo "ERROR: rolling_ma missing at ${ma_path}" >&2
+        echo "rolling_ma must be compiled in ${DISTRO_TAG} and packaged into the deb." >&2
         exit 1
     fi
 
     echo "==> Verified rolling_ma: ${ma_path} ($(stat -c%s "${ma_path}") bytes)"
 }
 
-build_deb_in_container() {
-    prepare_common_lib_for_by_lib
+ensure_docker_image() {
+    echo "==> Building image ${IMAGE_NAME} from ${DOCKERFILE}"
+    docker build -f "${DOCKER_DIR}/${DOCKERFILE}" -t "${IMAGE_NAME}" "${DOCKER_DIR}"
+}
 
-    echo "==> Building deb in container (${DISTRO_TAG}, by-lib)"
+build_libs_in_container() {
+    echo "==> Building static libraries in Docker (${DISTRO_TAG})"
     docker run --rm \
         -e HOST_UID="$(id -u)" \
         -e HOST_GID="$(id -g)" \
@@ -172,50 +155,119 @@ build_deb_in_container() {
         "${IMAGE_NAME}" \
         bash -lc "
             set -euo pipefail
-            rm -rf /workspace/binary_deb/common_lib
-            cp -a /workspace/binary_deb/common_lib-${DISTRO_TAG} /workspace/binary_deb/common_lib
             if [ -d build ]; then rm -rf build; fi
-            if [ -d binary_deb ]; then
-                find binary_deb -mindepth 1 -maxdepth 1 \
-                    -not -name common_lib \
-                    -not -name 'common_lib-*' \
-                    -exec rm -rf {} + 2>/dev/null || true
-            else
-                mkdir -p binary_deb
-            fi
-            cmake -S . -B build \
-                -DBUILD_DEB=yes \
-                -DPROJECT_BUILD=${PROJECT} \
-                -DOEM_BUILD=${OEM} \
-                -DBUILD_BY_LIB=1 \
-                -DDISTRO_TAG=${DISTRO_TAG}
-            cmake --build build
-            # Prefer prebuilt rolling_ma from common_lib; keep versioned copy in sync.
-            if [ -f /workspace/binary_deb/common_lib/rolling_ma ]; then
-                mkdir -p /workspace/binary_deb/common_lib-${DISTRO_TAG}
-                cp -f /workspace/binary_deb/common_lib/rolling_ma \
-                    /workspace/binary_deb/common_lib-${DISTRO_TAG}/rolling_ma
-            fi
-            cd build
-            cpack
-            mv *.deb /workspace/binary_deb/
-            chown \"\${HOST_UID}:\${HOST_GID}\" /workspace/binary_deb/*.deb 2>/dev/null || true
-            if [ -f /workspace/binary_deb/common_lib-${DISTRO_TAG}/rolling_ma ]; then
-                chown \"\${HOST_UID}:\${HOST_GID}\" /workspace/binary_deb/common_lib-${DISTRO_TAG}/rolling_ma 2>/dev/null || true
-            fi
+            mkdir -p binary_deb
+            ./script/make_deb.sh lib ${PROJECT} ${OEM}
+            rm -rf /workspace/binary_deb/common_lib-${DISTRO_TAG}
+            cp -a /workspace/binary_deb/common_lib /workspace/binary_deb/common_lib-${DISTRO_TAG}
+            chown -R \"\${HOST_UID}:\${HOST_GID}\" /workspace/binary_deb/common_lib /workspace/binary_deb/common_lib-${DISTRO_TAG} 2>/dev/null || true
         "
 
     verify_rolling_ma_for_rw350r_dell "${LIB_OUTPUT_DIR}/rolling_ma"
+
+    if [[ ! -d "${LIB_OUTPUT_DIR}" ]]; then
+        echo "ERROR: lib build did not produce ${LIB_OUTPUT_DIR}" >&2
+        exit 1
+    fi
+
+    echo "==> Libraries installed to ${LIB_OUTPUT_DIR}"
+    ls -la "${LIB_OUTPUT_DIR}"
+}
+
+build_deb_in_container() {
+    prepare_common_lib_for_by_lib
+
+    local by_lib_arg=""
+    if [[ "${BUILD_BY_LIB}" -eq 1 ]]; then
+        by_lib_arg="--by-lib"
+    fi
+
+    echo "==> Building deb in Docker via make_deb.sh (${DISTRO_TAG})"
+    docker run --rm \
+        -e HOST_UID="$(id -u)" \
+        -e HOST_GID="$(id -g)" \
+        -e DISTRO_TAG="${DISTRO_TAG}" \
+        -v "${PROJECT_ROOT}:/workspace" \
+        -w /workspace \
+        "${IMAGE_NAME}" \
+        bash -lc "
+            set -euo pipefail
+            if [ ${BUILD_BY_LIB} -eq 1 ]; then
+                rm -rf /workspace/binary_deb/common_lib
+                cp -a /workspace/binary_deb/common_lib-${DISTRO_TAG} /workspace/binary_deb/common_lib
+            fi
+            ./script/make_deb.sh deb ${PROJECT} ${OEM} ${by_lib_arg}
+            chown -R \"\${HOST_UID}:\${HOST_GID}\" /workspace/binary_deb /workspace/build 2>/dev/null || true
+        "
+
+    verify_rolling_ma_for_rw350r_dell "${PROJECT_ROOT}/build/application/rolling_ma_service/rolling_ma"
+    if [[ "${BUILD_BY_LIB}" -eq 1 ]] || [[ -f "${LIB_OUTPUT_DIR}/rolling_ma" ]]; then
+        verify_rolling_ma_for_rw350r_dell "${LIB_OUTPUT_DIR}/rolling_ma"
+    fi
+}
+
+build_libs_on_host() {
+    echo "==> Building static libraries on host via make_deb.sh (${DISTRO_TAG})"
+    echo "==> Tip: host Ubuntu should match ${DISTRO_TAG}"
+    export DISTRO_TAG
+    (
+        cd "${PROJECT_ROOT}"
+        if [[ -d build ]]; then rm -rf build; fi
+        mkdir -p binary_deb
+        ./script/make_deb.sh lib "${PROJECT}" "${OEM}"
+        rm -rf "binary_deb/common_lib-${DISTRO_TAG}"
+        cp -a binary_deb/common_lib "binary_deb/common_lib-${DISTRO_TAG}"
+    )
+
+    verify_rolling_ma_for_rw350r_dell "${LIB_OUTPUT_DIR}/rolling_ma"
+
+    if [[ ! -d "${LIB_OUTPUT_DIR}" ]]; then
+        echo "ERROR: lib build did not produce ${LIB_OUTPUT_DIR}" >&2
+        exit 1
+    fi
+
+    echo "==> Libraries installed to ${LIB_OUTPUT_DIR}"
+    ls -la "${LIB_OUTPUT_DIR}"
+}
+
+build_deb_on_host() {
+    prepare_common_lib_for_by_lib
+
+    local by_lib_arg=""
+    if [[ "${BUILD_BY_LIB}" -eq 1 ]]; then
+        by_lib_arg="--by-lib"
+    fi
+
+    echo "==> Building deb on host via make_deb.sh (${DISTRO_TAG})"
+    echo "==> Tip: host Ubuntu should match ${DISTRO_TAG}"
+    export DISTRO_TAG
+    (
+        cd "${PROJECT_ROOT}"
+        if [[ "${BUILD_BY_LIB}" -eq 1 ]]; then
+            rm -rf binary_deb/common_lib
+            cp -a "binary_deb/common_lib-${DISTRO_TAG}" binary_deb/common_lib
+        fi
+        ./script/make_deb.sh deb "${PROJECT}" "${OEM}" ${by_lib_arg}
+    )
+
+    verify_rolling_ma_for_rw350r_dell "${PROJECT_ROOT}/build/application/rolling_ma_service/rolling_ma"
+    if [[ "${BUILD_BY_LIB}" -eq 1 ]] || [[ -f "${LIB_OUTPUT_DIR}/rolling_ma" ]]; then
+        verify_rolling_ma_for_rw350r_dell "${LIB_OUTPUT_DIR}/rolling_ma"
+    fi
 }
 
 run_smoke_test() {
     local deb_file="$1"
     local xml_pkg="libxml2"
-    local fwupd_pkg="libfwupd2"
+    local fwupd_pkg="libfwupd3"
 
     if [[ "${DISTRO_TAG}" == "ubuntu26.04" ]]; then
         xml_pkg="libxml2-16"
-        fwupd_pkg="libfwupd3"
+    fi
+
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "==> Smoke test skipped: docker not available"
+        return 0
     fi
 
     echo "==> Running smoke test in clean ${BASE_IMAGE} container"
@@ -230,6 +282,7 @@ run_smoke_test() {
 
             echo '==> Checking deb Depends metadata'
             dpkg-deb -I /tmp/package.deb | grep -E '^ Depends:' | grep -q ${xml_pkg}
+            dpkg-deb -I /tmp/package.deb | grep -E '^ Depends:' | grep -q ${fwupd_pkg}
 
             echo '==> Installing runtime dependencies'
             apt-get install -y -qq ${xml_pkg} ${fwupd_pkg} libglib2.0-0 libmbim-glib4 libudev1 >/dev/null
@@ -263,7 +316,25 @@ run_smoke_test() {
         "
 }
 
-build_deb_in_container
+# ---------- main ----------
+if [[ "${USE_DOCKER}" -eq 1 ]]; then
+    echo "==> Target ${DISTRO_TAG}: use Docker"
+    ensure_docker_image
+    if [[ "$PKG_TYPE" == "lib" ]]; then
+        build_libs_in_container
+        echo "==> Done: ${LIB_OUTPUT_DIR}"
+        exit 0
+    fi
+    build_deb_in_container
+else
+    echo "==> Target ${DISTRO_TAG}: use host ./script/make_deb.sh (no Docker compile)"
+    if [[ "$PKG_TYPE" == "lib" ]]; then
+        build_libs_on_host
+        echo "==> Done: ${LIB_OUTPUT_DIR}"
+        exit 0
+    fi
+    build_deb_on_host
+fi
 
 DEB_FILE="$(ls -1 "${PROJECT_ROOT}/binary_deb/"*-"${DISTRO_TAG}"_amd64.deb 2>/dev/null | tail -1 || true)"
 if [[ -z "${DEB_FILE}" ]]; then
