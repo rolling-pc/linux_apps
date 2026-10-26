@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2019-2023 Intel Corporation
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 include(version.cmake)
 
@@ -164,7 +164,7 @@ target_compile_options(${PROJECT_NAME}_objlib
 target_compile_options(${PROJECT_NAME}_objlib
                        PRIVATE  -Wstack-protector -Winit-self)
 target_compile_options(${PROJECT_NAME}_objlib
-                       PRIVATE -D_FORTIFY_SOURCE=2 -O2)
+                       PRIVATE -O2)
 target_compile_options(${PROJECT_NAME}_objlib
                        PRIVATE -fstack-protector-all)
 target_compile_options(${PROJECT_NAME}_objlib

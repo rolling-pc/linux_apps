@@ -1,88 +1,166 @@
-#!/bin/bash
+#!/bin/sh
+# postinst for linux-apps.
+#
+# SINGLE SOURCE OF TRUTH: the CPack build embeds script/<name> verbatim via
+# CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA, and debian/<name> is a byte-for-byte copy
+# of this file, so a cpack build and a dpkg-buildpackage build ship exactly the
+# same maintainer scripts.  Edit here, then re-copy to debian/.
+#
+# No #DEBHELPER# token on purpose; see the note in script/preinst.
+
 set -e
 
-# Ensure rolling_ma is executable after package install
-if [ -f "/opt/rolling/rolling_ma_service/rolling_ma" ]; then
-    chmod 755 /opt/rolling/rolling_ma_service/rolling_ma
-fi
-if [ -f "/opt/rolling/rolling_ma_service/libmodemauth.so.1.1" ]; then
-    chmod 755 /opt/rolling/rolling_ma_service/libmodemauth.so.1.1
-fi
+SERVICE_UNITS="rolling_helper rolling_config rolling_flash"
+FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
+FWUPD_QUIRK_DIR="/usr/share/fwupd/quirks.d"
+FWUPD_QUIRK_FILE="${FWUPD_QUIRK_DIR}/rolling-linux-apps.quirk"
 
-# Install MA fcc-unlock scripts into ModemManager
-if [ -d "/usr/lib/x86_64-linux-gnu/ModemManager" ]; then
-    if [ -d "/opt/rolling/rolling_ma_service/fcc-unlock.d" ]; then
-        cp -raf /opt/rolling/rolling_ma_service/fcc-unlock.d /usr/lib/x86_64-linux-gnu/ModemManager/
-        chown -R root:root /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
-        chmod 755 -R /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
-    fi
-elif [ -d "/usr/lib64/ModemManager" ]; then
-    if [ -d "/opt/rolling/rolling_ma_service/fcc-unlock.d" ]; then
-        cp -raf /opt/rolling/rolling_ma_service/fcc-unlock.d /usr/lib64/ModemManager/
-        chown -R root:root /usr/lib64/ModemManager/fcc-unlock.d
-        chmod 755 -R /usr/lib64/ModemManager/fcc-unlock.d
-    fi
-fi
+case "$1" in
+    configure)
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        exit 0
+        ;;
+    *)
+        echo "postinst called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
 
-if [ -d "/opt/rolling/rolling_config_service" ]; then
-    mkdir -p /etc/opt/rolling/config_file/rolling_config_service/
-    mv /opt/rolling/rolling_config_service/*.ini /etc/opt/rolling/config_file/rolling_config_service/
-fi
-
-if [ -d "/opt/rolling/rolling_flash_service" ]; then
-    mkdir -p /etc/opt/rolling/config_file/rolling_flash_service/
-    mv /opt/rolling/rolling_flash_service/*.ini /etc/opt/rolling/config_file/rolling_flash_service/
-fi
-
-mkdir -p /etc/opt/rolling/run
-mkdir -p /etc/opt/rolling/rolling_fw_pkg/
-
-function start_service()
-{
-    path="/lib/systemd/system/"
-    if [[ -f ${path}rolling_config.service && -f ${path}rolling_flash.service && -f ${path}rolling_helper.service ]]; then
-        systemctl enable rolling_config.service rolling_flash.service rolling_helper.service
-        systemctl start rolling_helper.service rolling_config.service rolling_flash.service
-    fi
+have_systemctl() {
+    command -v systemctl >/dev/null 2>&1
 }
 
-function modify_fwupd_quirk()
-{
-    local cmd1="grep -qF \"[USB\VID_33F8&PID_0301]\" /usr/share/fwupd/quirks.d/builtin.quirk"
-    local cmd2="grep -qF \"[USB\VID_33F8&PID_0302]\" /usr/share/fwupd/quirks.d/builtin.quirk"
-    local cmd3="grep -qF \"[USB\VID_33F8&PID_D00D]\" /usr/share/fwupd/quirks.d/builtin.quirk"
-    gunzip /usr/share/fwupd/quirks.d/builtin.quirk.gz
-    if ! eval "$cmd3"; then
-        echo "
+# The executables are shipped 0755; re-assert it in case an operator or an
+# archive extraction dropped the bit.
+fix_modes() {
+    for f in /opt/rolling/rolling_ma_service/rolling_ma \
+             /opt/rolling/rolling_ma_service/libmodemauth.so.1.1; do
+        if [ -f "$f" ]; then
+            chmod 0755 "$f"
+        fi
+    done
+    return 0
+}
+
+# ModemManager loads FCC unlock plugins from its own directory.  The scripts
+# live under /opt (they are part of this package's payload), so they are copied
+# into place here.  Only our own file names are written; nothing that belongs to
+# another package is modified or removed.
+install_fcc_unlock() {
+    src=/opt/rolling/rolling_ma_service/fcc-unlock.d
+    [ -d "$src" ] || return 0
+
+    for mm in /usr/lib/*/ModemManager /usr/lib/ModemManager /usr/lib64/ModemManager; do
+        [ -d "$mm" ] || continue
+        dest="${mm}/fcc-unlock.d"
+        mkdir -p "$dest"
+        for id in $FCC_IDS; do
+            if [ -f "${src}/${id}" ]; then
+                cp -f "${src}/${id}" "${dest}/${id}"
+                chmod 0755 "${dest}/${id}"
+            fi
+        done
+    done
+    return 0
+}
+
+# Seed /etc/opt/rolling/config_file from the defaults shipped under /opt.
+#
+# The originals are COPIED, not moved: the .ini files belong to this package and
+# must stay where dpkg put them, otherwise "dpkg -V" reports missing files and
+# every upgrade re-extracts them.  An existing file in /etc is never overwritten,
+# so local edits survive upgrades.
+seed_config() {
+    src="$1"
+    dest="$2"
+    [ -d "$src" ] || return 0
+    for ini in "$src"/*.ini; do
+        [ -f "$ini" ] || continue
+        base=${ini##*/}
+        mkdir -p "$dest"
+        if [ ! -e "${dest}/${base}" ]; then
+            cp -p "$ini" "${dest}/${base}"
+        fi
+    done
+    return 0
+}
+
+# Enable and start the services.  debhelper's systemd snippets are deliberately
+# disabled (see debian/rules), so this is the only place that does it, for both
+# build paths alike.
+start_services() {
+    have_systemctl || return 0
+    units=""
+    for unit in $SERVICE_UNITS; do
+        for dir in /lib/systemd/system /usr/lib/systemd/system; do
+            if [ -f "${dir}/${unit}.service" ]; then
+                units="$units ${unit}.service"
+                break
+            fi
+        done
+    done
+    [ -n "$units" ] || return 0
+
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable $units 2>/dev/null || true
+    systemctl start $units 2>/dev/null || true
+    return 0
+}
+
+# fwupd needs the RW101 fastboot quirks to talk to the modem.  Older revisions
+# of this package decompressed, appended to and recompressed
+# /usr/share/fwupd/quirks.d/builtin.quirk.gz, i.e. rewrote a file owned by the
+# fwupd package, and lost the change on every fwupd upgrade.  fwupd reads every
+# *.quirk file in that directory, so a drop-in file of our own is both cleaner
+# and durable.
+install_fwupd_quirk() {
+    [ -d "$FWUPD_QUIRK_DIR" ] || return 0
+
+    cat > "$FWUPD_QUIRK_FILE" <<'ROLLING_QUIRK_EOF'
+# Installed by linux-apps (postinst).  Removed on purge.
+# Rolling Wireless WWAN modules handled by the ModemManager fastboot plugin.
+
 [USB\VID_33F8&PID_D00D]
 Plugin = fastboot
 FastbootBlockSize = 16384
 FastbootOperationDelay = 0
 Summary = Rolling RW101 Modem (fastboot)
 CounterpartGuid = USB\VID_33F8&PID_0301
-CounterpartGuid = USB\VID_33F8&PID_0302" >> /usr/share/fwupd/quirks.d/builtin.quirk
-    fi
+CounterpartGuid = USB\VID_33F8&PID_0302
 
-    if ! eval "$cmd2"; then
-        echo "
 [USB\VID_33F8&PID_0302]
 GType = FuMmFastbootDevice
 Summary = Rollingwireless RW101-GL Module
 Flags = uninhibit-modemmanager-after-fastboot-reboot,detach-at-fastboot-has-no-response
-CounterpartGuid = USB\VID_33F8&PID_D00D" >> /usr/share/fwupd/quirks.d/builtin.quirk
-    fi
+CounterpartGuid = USB\VID_33F8&PID_D00D
 
-    if ! eval "$cmd1"; then
-        echo "
 [USB\VID_33F8&PID_0301]
 GType = FuMmFastbootDevice
 Summary = Rollingwireless RW101-GL Module
 Flags = uninhibit-modemmanager-after-fastboot-reboot,detach-at-fastboot-has-no-response
-CounterpartGuid = USB\VID_33F8&PID_D00D" >> /usr/share/fwupd/quirks.d/builtin.quirk
-    fi
+CounterpartGuid = USB\VID_33F8&PID_D00D
+ROLLING_QUIRK_EOF
 
-    gzip /usr/share/fwupd/quirks.d/builtin.quirk
-    systemctl restart fwupd
+    chmod 0644 "$FWUPD_QUIRK_FILE"
+
+    if have_systemctl; then
+        systemctl try-restart fwupd.service 2>/dev/null || true
+    fi
+    return 0
 }
-modify_fwupd_quirk
-start_service
+
+fix_modes
+install_fcc_unlock
+seed_config /opt/rolling/rolling_config_service /etc/opt/rolling/config_file/rolling_config_service
+seed_config /opt/rolling/rolling_flash_service /etc/opt/rolling/config_file/rolling_flash_service
+
+# Runtime state.  These paths are compiled into rolling_flash
+# (rolling_flash_common.h), so they must match exactly.
+install -d -m 0755 /etc/opt/rolling/run
+install -d -m 0755 /etc/opt/rolling/rolling_fw_pkg
+
+install_fwupd_quirk
+start_services
+
+exit 0

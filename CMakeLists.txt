@@ -14,7 +14,7 @@
 # * Copyright (C) 2025, Rolling Wireless S.a.r.l.
 # */
 
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.10)
 
 # Note: project version is the rolling-linux version. Update this as per below description
 # It is three part.
@@ -159,24 +159,28 @@ install(CODE "MESSAGE(\"start install script.\")")
 install(CODE "execute_process(COMMAND bash ${PROJECT_SOURCE_DIR}/install)")
 install(CODE "MESSAGE(\"run install script success.\")")
 
-set(DEFAULT_INSTALL_PREFIX "")
-
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    set(CMAKE_INSTALL_PREFIX ${DEFAULT_INSTALL_PREFIX} CACHE PATH "Default installation path" FORCE)
-endif()
-message(STATUS "Installation prefix: ${CMAKE_INSTALL_PREFIX}")  
+# NOTE: do not force CMAKE_INSTALL_PREFIX here.
+#
+# The FORCEd CACHE set that used to live here overwrote whatever prefix was
+# passed on the command line, so "cmake --install" wrote into the host root and
+# debhelper found debian/tmp empty (dh_install then failed on every path).
+#
+# The prefix is owned by the caller:
+#   - debhelper : debian/rules passes -DCMAKE_INSTALL_PREFIX=/ and dh supplies
+#                 DESTDIR=debian/tmp, so the relative DESTINATIONs below resolve
+#                 to debian/tmp/opt/rolling, debian/tmp/usr/... etc.
+#   - CPack     : make_deb.sh passes no prefix; CPACK_SET_DESTDIR/CPack staging
+#                 handles it.  The destinations must stay relative for CPack.
+message(STATUS "Installation prefix: ${CMAKE_INSTALL_PREFIX}")
 set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
 set(outer_loop_exit FALSE)
 
-# Dell rw350r has BUILD_MA=yes and ships rolling_ma + fcc-unlock.d; use script/
-# maintainer scripts so postinst installs unlock helpers into ModemManager.
-# Lenovo rw350r keeps BUILD_MA=no and uses no_ma_script/.
-if ("${BUILD_MA}" STREQUAL "yes")
-    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../script")
-else ()
-    set(PROJECT_DEB_CONTROL_PATH "${PROJECT_BINARY_DIR}/../no_ma_script")
-endif ()
+# A single set of maintainer scripts serves both BUILD_MA=yes (Dell rw350r,
+# ships rolling_ma + fcc-unlock.d) and BUILD_MA=no (Lenovo rw350r).  The scripts
+# under script/ guard every MA-specific action with an existence check, so they
+# are no-ops when MA is not built.  There is no separate no_ma_script/ tree.
+set(PROJECT_DEB_CONTROL_PATH "${PROJECT_SOURCE_DIR}/script")
 message(STATUS "Debian control scripts: ${PROJECT_DEB_CONTROL_PATH} (BUILD_MA=${BUILD_MA})")
 
 set(PROJECT_DEB_CONTROL_PREINST "${PROJECT_DEB_CONTROL_PATH}/preinst")
@@ -190,16 +194,19 @@ macro(rolling_linux_configure_deb_package)
         message(STATUS "Debian package release tag: ${DISTRO_TAG}")
     endif()
 
+    # The CPack DEB generator defaults CPACK_PACKAGING_INSTALL_PREFIX to
+    # "/usr", which silently relocated the whole payload to
+    # /usr/opt/rolling (systemd units still point at /opt/rolling, so every
+    # service then failed to start).  Pin the prefix to "/" so the relative
+    # DESTINATIONs (opt/rolling, usr/lib/systemd/system, ...) land where the
+    # maintainer scripts and unit files expect them.
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/")
+
     # rolling_flash links libfwupd.so.3 on Ubuntu 22.04/24.04/26.04 (package libfwupd3).
     # Declaring libfwupd2 leaves .so.3 unresolved at runtime (service exit 127).
-    if(DISTRO_TAG STREQUAL "ubuntu26.04")
         # Ubuntu 26.04: libxml2 SONAME -> libxml2.so.16 (package libxml2-16)
         set(_rolling_deb_runtime_depends
             "libxml2-16, libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
-    else()
-        set(_rolling_deb_runtime_depends
-            "libxml2 (>= 2.9.0), libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
-    endif()
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "${_rolling_deb_runtime_depends}")
     message(STATUS "Debian package depends: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
 endmacro()
@@ -239,48 +246,57 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                         # 使用install脚本创建的目录结构
                         set(deb_soft_dirs "${PROJECT_BINARY_DIR}/release/dpkg")
                         
-                        # 安装opt目录
-                        install(DIRECTORY "${deb_soft_dirs}/opt/rolling" 
-                                FILE_PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ 
-                                DESTINATION "${CMAKE_INSTALL_PREFIX}/opt")
+                        # NOTE: DESTINATION must be RELATIVE.  An absolute
+                        # destination is used verbatim and is NOT relocated by
+                        # DESTDIR, so "cmake --install" would write straight into
+                        # the host /opt and /usr and debhelper would find
+                        # debian/tmp empty.  A relative destination is resolved
+                        # against CMAKE_INSTALL_PREFIX and relocated by DESTDIR,
+                        # which is exactly what dh_auto_install needs.
+                        # debian/rules passes -DCMAKE_INSTALL_PREFIX=/ and dh
+                        # supplies DESTDIR=debian/tmp, giving debian/tmp/opt/...
+
+                        # Permissions are taken from the staged tree: the
+                        # upstream "install" helper normalises it to 0755 for
+                        # executables/directories and 0644 for data files.
+                        # USE_SOURCE_PERMISSIONS is required: without any
+                        # permission keyword install(DIRECTORY) installs every
+                        # file as 0644 and silently drops the executable bit
+                        # from the service binaries (systemd then fails with
+                        # 203/EXEC).  Do NOT set FILE_PERMISSIONS either --
+                        # it would override the staged modes and make a cpack
+                        # build differ from a dpkg-buildpackage build.
+                        # 安装opt目录 (source has no trailing slash, so the
+                        # "rolling" directory is created under DESTINATION)
+                        install(DIRECTORY "${deb_soft_dirs}/opt/rolling"
+                                DESTINATION "opt"
+                                USE_SOURCE_PERMISSIONS)
                         
                         # 安装udev相关目录
-                        install(DIRECTORY "${deb_soft_dirs}/usr/lib/udev/"  
-                                FILE_PERMISSIONS    
-                                OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                                GROUP_EXECUTE GROUP_READ 
-                                WORLD_EXECUTE WORLD_READ
-                                DESTINATION "${CMAKE_INSTALL_PREFIX}/usr/lib/udev/")
-                        
-                        install(DIRECTORY "${deb_soft_dirs}/usr/lib/udev/rules.d/"  
-                                FILE_PERMISSIONS    
-                                OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                                GROUP_EXECUTE GROUP_READ 
-                                WORLD_EXECUTE WORLD_READ
-                                DESTINATION "${CMAKE_INSTALL_PREFIX}/usr/lib/udev/rules.d")
-                        
+                        # NOTE: install(DIRECTORY ...) only accepts permission
+                        # tokens after FILE_PERMISSIONS / DIRECTORY_PERMISSIONS.
+                        # A bare "OWNER_EXECUTE ..." is not a keyword there -- it
+                        # is parsed as one more *source directory*, and the build
+                        # dies with
+                        #   file INSTALL cannot find ".../OWNER_EXECUTE"
+                        # Permissions therefore come from the staged tree via
+                        # USE_SOURCE_PERMISSIONS (the "install" helper
+                        # normalises it to 0755/0644).
+                        install(DIRECTORY "${deb_soft_dirs}/usr/lib/udev/rules.d/"
+                                DESTINATION "usr/lib/udev/rules.d"
+                                USE_SOURCE_PERMISSIONS)
+
                         # 安装systemd服务目录
-                        install(DIRECTORY "${deb_soft_dirs}/lib/systemd/system/"  
-                                FILE_PERMISSIONS    
-                                OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                                GROUP_EXECUTE GROUP_READ 
-                                WORLD_EXECUTE WORLD_READ
-                                DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/system")
-                        
+                        # Policy 4.7.1 (10.1): must not install into /lib etc.
+                        # (now symlinks to /usr) -- use usr/lib/systemd/system.
+                        install(DIRECTORY "${deb_soft_dirs}/usr/lib/systemd/system/"
+                                DESTINATION "usr/lib/systemd/system"
+                                USE_SOURCE_PERMISSIONS)
+
                         # 安装dbus配置目录
-                        install(DIRECTORY "${deb_soft_dirs}/usr/share/dbus-1/"  
-                                FILE_PERMISSIONS    
-                                OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                                GROUP_EXECUTE GROUP_READ 
-                                WORLD_EXECUTE WORLD_READ
-                                DESTINATION "${CMAKE_INSTALL_PREFIX}/usr/share/dbus-1/")
-                        
-                        install(DIRECTORY "${deb_soft_dirs}/usr/share/dbus-1/system.d/"  
-                                FILE_PERMISSIONS    
-                                OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                                GROUP_EXECUTE GROUP_READ 
-                                WORLD_EXECUTE WORLD_READ
-                                DESTINATION "${CMAKE_INSTALL_PREFIX}/usr/share/dbus-1/system.d")
+                        install(DIRECTORY "${deb_soft_dirs}/usr/share/dbus-1/system.d/"
+                                DESTINATION "usr/share/dbus-1/system.d"
+                                USE_SOURCE_PERMISSIONS)
                         install(CODE "MESSAGE(\"install success!\")")
 
                     
@@ -293,8 +309,8 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                             set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
                             set(CPACK_DEBIAN_PACKAGE_GROUP "rolling")
                             set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "WWAN Linux apps")
-                            set(CPACK_DEBIAN_PACKAGE_SECTION "base")
-                            set(CPACK_DEBIAN_PACKAGE_PRIORITY "standard")
+                            set(CPACK_DEBIAN_PACKAGE_SECTION "net")
+                            set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
                             set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
                             set(CPACK_DEBIAN_PACKAGE_MAINTAINER "rolling")
                             rolling_linux_configure_deb_package()
@@ -310,19 +326,19 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                             set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
                             set(CPACK_RPM_PACKAGE_GROUP "Applications/Internet")
                             set(CPACK_RPM_PACKAGE_DESCRIPTION "WWAN Linux apps")
-                            set(CPACK_RPM_PACKAGE_LICENSE "GPL")
+                            set(CPACK_RPM_PACKAGE_LICENSE "LGPL-2.1 AND GPL-2.0")
                             set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_PREINST}")
                             set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_POSTINST}")
                             set(CPACK_RPM_PRE_UNINSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_PRERM}")
                             set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_POSTRM}")
-                            set(CPACK_RPM_RELOCATION_PATHS "/lib/systemd/system;/opt/rolling")
+                            set(CPACK_RPM_RELOCATION_PATHS "/usr/lib/systemd/system;/opt/rolling")
                         else()
                             set(CPACK_GENERATOR "DEB")
                             set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
                             set(CPACK_DEBIAN_PACKAGE_GROUP "rolling")
                             set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "WWAN Linux apps")
-                            set(CPACK_DEBIAN_PACKAGE_SECTION "base")
-                            set(CPACK_DEBIAN_PACKAGE_PRIORITY "standard")
+                            set(CPACK_DEBIAN_PACKAGE_SECTION "net")
+                            set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
                             set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
                             set(CPACK_DEBIAN_PACKAGE_MAINTAINER "rolling")
                             rolling_linux_configure_deb_package()

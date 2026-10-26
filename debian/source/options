@@ -1,0 +1,21 @@
+# Options for dpkg-source; see dpkg-source(1).
+#
+# The source format is "3.0 (native)", i.e. the whole working tree becomes
+# ../linux-apps_<version>.tar.xz -- there is no upstream tarball that could
+# separate "upstream" from "packaging".  Everything therefore has to be kept
+# out of the tarball here, because .gitignore only steers git and is ignored
+# by dpkg-source.
+tar-ignore = .git
+tar-ignore = .pc
+tar-ignore = build
+tar-ignore = *.deb
+tar-ignore = *.dsc
+tar-ignore = *.changes
+tar-ignore = *.buildinfo
+tar-ignore = *.tar.*
+tar-ignore = *.substvars
+tar-ignore = *.debhelper*
+
+# Only meaningful for quilt-style formats, kept because it costs nothing and
+# keeps -sa / future format switches clean.
+extend-diff-ignore = ^\.gitignore$

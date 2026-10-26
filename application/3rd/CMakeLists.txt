@@ -14,7 +14,7 @@
 # * Copyright (C) 2023, Rolling Wireless S.a.r.l.
 # */
 
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.10)
 
 project(3rd)
 

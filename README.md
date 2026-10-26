@@ -5,7 +5,26 @@ This is a Rolling Linux apps set project for WWAN devices.<br>
   **Helper service:** provides D-Bus API for Flash/Ma/Config service.<br>
 
 # License
-The rolling_flash, rolling_config, and rolling_helper binaries are LGPL 2.0.<br>
+Licensing is described in one place, the top-level LICENSE file:
+
+  1. SOURCE CODE -- all published source code (*.c, *.h, CMakeLists.txt,
+     debian/, script/) is LGPL-2.1 (LICENSE "SECTION A"; same text in
+     COPYING).  Exceptions: application/3rd/iniparser and
+     application/3rd/safestringlib are MIT, application/3rd/qdl is
+     BSD-3-clause, and application/include/common/rolling_list.h is GPL-2
+     (derived from the Linux kernel).<br>
+
+  2. PREBUILT BINARIES -- the four .a static archives in
+     binary_deb/common_lib/ and the rolling_ma executable in
+     application/rolling_ma_service/ are compiled from internal sources that
+     are not published in this repository.  They are redistributed under the
+     Custom Binary Redistribution License (LICENSE "SECTION B"): binary
+     redistribution is permitted under the listed conditions; modification
+     and source redistribution are reserved.  Each of those two directories
+     ships its own self-contained copy of that license, with the size and
+     SHA-256 of the artefacts it covers (binary_deb/common_lib/LICENSE,
+     application/rolling_ma_service/LICENSE).  See also debian/copyright
+     ("Rolling-binary-1.0").<br>
 
 # Notice
   - Services must be used with fw_package. Before installing services, ensure that fw_package has been installed. Obtain the fw package from the corresponding OEM.<br>
@@ -50,14 +69,25 @@ This repo only has prebuilt static libs. Build libs in **opensrc** Docker first,
 # opensrc: build 26.04 libs (+ rolling_ma)
 cd /path/to/dev_linux_app/.../linux-apps
 ./script/build_multi_distro.sh lib rw350r dell resolute
-cp -a binary_deb/common_lib-ubuntu26.04/* \
+
+# copy the archives (and their license) into the upstream tree
+cp -a binary_deb/common_lib-ubuntu26.04/*.a \
   /path/to/upstream_github/linux_apps/binary_deb/common_lib-ubuntu26.04/
+
+# rolling_ma lives in application/rolling_ma_service/ and is licensed there;
+# only copy it if the opensrc build produced a different binary
+cp -a binary_deb/common_lib-ubuntu26.04/rolling_ma \
+  /path/to/upstream_github/linux_apps/application/rolling_ma_service/
 
 # upstream: package 26.04 deb inside Docker (always by-lib)
 cd /path/to/upstream_github/linux_apps
 ./script/build_multi_distro.sh deb rw350r dell resolute
 # skip smoke: add --no-smoke
 ```
+
+`rolling_ma` is looked up, in order, at the CMake build output, then
+`binary_deb/common_lib-<distro>/rolling_ma` (only if a distro-specific variant
+is needed), then `application/rolling_ma_service/rolling_ma`.
 
 Library Ubuntu version must match the deb target (22.04 libs for jammy, 26.04 for resolute). Do not link 26.04 libs on a 22.04 host.
 

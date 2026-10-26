@@ -9,7 +9,9 @@ FLASH_SERVICE_APP_PATH="${APP_DIR}/rolling_flash_service/rolling_flash*"
 FLASH_SERVICE_APP_DIR="${APP_DIR}/rolling_flash_service"
 HELPER_SERVICE_APP_PATH="${APP_DIR}/rolling_helper_service/"
 MA_SERVICE_COMMON_LIB="${basedir}/binary_deb/common_lib"
-MA_SERVICE_PATH_APP_DIR="${BUILD_DIR}/../application/rolling_ma_service"
+# rolling_ma ships as a prebuilt binary next to its (unpublished) sources.
+# The CMake build output is preferred when the sources are ever added.
+MA_SERVICE_PATH_APP_DIR="${basedir}/application/rolling_ma_service"
 MA_SERVICE_PATH_APP_PATH="${BUILD_DIR}/application/rolling_ma_service/rolling_ma"
 
 function resolve_rolling_ma_source()
@@ -21,17 +23,23 @@ function resolve_rolling_ma_source()
         distro_tag=$(grep -E '^DISTRO_TAG:STRING=' "${BUILD_DIR}/CMakeCache.txt" 2>/dev/null | cut -d= -f2)
     fi
 
+    # Precedence: a real build from source wins; then a distro-specific prebuilt
+    # (multi-distro builds may need a different libc/ABI); then the generic
+    # prebuilt shipped with the service; then the historical binary_deb/ copy.
     if [ -f "${MA_SERVICE_PATH_APP_PATH}" ]; then
         candidate="${MA_SERVICE_PATH_APP_PATH}"
     elif [ -n "${distro_tag}" ] && [ -f "${basedir}/binary_deb/common_lib-${distro_tag}/rolling_ma" ]; then
         candidate="${basedir}/binary_deb/common_lib-${distro_tag}/rolling_ma"
+    elif [ -f "${MA_SERVICE_PATH_APP_DIR}/rolling_ma" ]; then
+        candidate="${MA_SERVICE_PATH_APP_DIR}/rolling_ma"
     elif [ -f "${MA_SERVICE_COMMON_LIB}/rolling_ma" ]; then
         candidate="${MA_SERVICE_COMMON_LIB}/rolling_ma"
     fi
 
     if [ -z "${candidate}" ]; then
         echo "ERROR: rolling_ma not found for deb packaging." >&2
-        echo "  expected build output: ${MA_SERVICE_PATH_APP_PATH}" >&2
+        echo "  expected build output:  ${MA_SERVICE_PATH_APP_PATH}" >&2
+        echo "  expected prebuilt file: ${MA_SERVICE_PATH_APP_DIR}/rolling_ma" >&2
         if [ -n "${distro_tag}" ]; then
             echo "  expected versioned lib: ${basedir}/binary_deb/common_lib-${distro_tag}/rolling_ma" >&2
         fi
@@ -164,15 +172,30 @@ function create_config_service()
 {
     echo "[Unit]
 Description=Firmware Config Service
+Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 
 [Service]
-EnvironmentFile=/lib/systemd/system/rolling_config.d/env.conf
+EnvironmentFile=/usr/lib/systemd/system/rolling_config.d/env.conf
 ExecStart=/opt/rolling/rolling_config_service/rolling_config
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
 Type=simple
 User=root
+
+# Hardening (systemd-service-file-missing-hardening-features, Policy pedantic).
+# Safe subset: none of these services touch /home, /tmp (except via the D-Bus
+# peers), the clock, hostname, kernel logs/modules/tunables, cgroups, and they
+# do not create SUID/SGID files (verified against the application sources).
+ProtectHome=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
 
 [Install]
 Alias=rolling_config.service
@@ -184,14 +207,27 @@ function create_flash_service()
 {
     echo "[Unit]
 Description=Firmware Flash Service
+Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 [Service]
-EnvironmentFile=/lib/systemd/system/rolling_flash.d/env.conf
+EnvironmentFile=/usr/lib/systemd/system/rolling_flash.d/env.conf
 ExecStart=/opt/rolling/rolling_flash_service/rolling_flash
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
 Type=simple
 User=root
+
+# Same safe hardening subset as rolling_config.service; firmware payloads are
+# consumed from /etc/opt/rolling/rolling_fw_pkg, never /tmp or /sys.
+ProtectHome=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
 
 [Install]
 Alias=rolling_flash.service
@@ -204,15 +240,27 @@ function create_helper_service()
 {
     echo "[Unit]
 Description=Firmware Helper Service
+Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service
 
 [Service]
-EnvironmentFile=/lib/systemd/system/rolling_helper.d/env.conf
+EnvironmentFile=/usr/lib/systemd/system/rolling_helper.d/env.conf
 ExecStart=/opt/rolling/rolling_helper_service/rolling_helper
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
 Type=simple
 User=root
+
+# Same safe hardening subset as rolling_config.service.
+ProtectHome=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
 
 [Install]
 Alias=rolling_helper.service
@@ -297,7 +345,8 @@ ATTRS{idVendor}==\"33f8\", ATTRS{idProduct}==\"01a9\", ENV{.MM_USBIFNUM}==\"03\"
 
 LABEL=\"mm_rolling_linux_apps_port_types_end\"
 " > $1/99-mm-rolling-linux-apps-port-types.rules
-    chmod 755 $1/99-mm-rolling-linux-apps-port-types.rules
+    # udev rules are read by udevd, not executed -- must be 0644
+    chmod 644 $1/99-mm-rolling-linux-apps-port-types.rules
 }
 function create_fcc_unlock()
 {
@@ -330,24 +379,24 @@ EOF
 
 function create_and_install()
 {
-    mkdir -p ${DEB_SOFT_DIRS}/lib/systemd/system/
+    mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        create_config_service ${DEB_SOFT_DIRS}/lib/systemd/system/
-        mkdir -p ${DEB_SOFT_DIRS}/lib/systemd/system/rolling_config.d/
-        create_config_d ${DEB_SOFT_DIRS}/lib/systemd/system/rolling_config.d/
+        create_config_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
+        mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
+        create_config_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
         mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_config_service/
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
-        create_flash_service ${DEB_SOFT_DIRS}/lib/systemd/system/
-        mkdir -p ${DEB_SOFT_DIRS}/lib/systemd/system/rolling_flash.d/
-        create_flash_d ${DEB_SOFT_DIRS}/lib/systemd/system/rolling_flash.d/
+        create_flash_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
+        mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
+        create_flash_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
         mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_flash_service/
     fi
     if [ "yes" == "${BUILD_HELPER}" ]; then
-        create_helper_service ${DEB_SOFT_DIRS}/lib/systemd/system/
-        mkdir -p ${DEB_SOFT_DIRS}/lib/systemd/system/rolling_helper.d/
-        create_helper_d ${DEB_SOFT_DIRS}/lib/systemd/system/rolling_helper.d/
+        create_helper_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
+        mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
+        create_helper_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
         mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/
         if [ "yes" == "${BUILD_DOWN_TOOL}" ]; then
             mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/rolling_helper_tools/
@@ -365,6 +414,26 @@ function create_and_install()
     mkdir -p ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
     create_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
 	create_lvfs_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
+}
+
+# Normalise the modes of the staged tree.
+#
+# This is the single place that decides permissions, because both build paths
+# consume the same tree:
+#   * cpack  -> install(DIRECTORY ...) copies the tree as-is
+#   * dpkg   -> dh_auto_install runs "cmake --install" with DESTDIR=debian/tmp
+# If the modes were left to chance, dh_fixperms would normalise them on the
+# dpkg side but not on the cpack side, and the two .deb files would differ.
+# 0755 for anything executable, 0644 for everything else, 0755 for directories
+# is exactly what dh_fixperms would produce, so it becomes a no-op there.
+function normalize_permissions()
+{
+    if [ ! -d "${DEB_SOFT_DIRS}" ]; then
+        return 0
+    fi
+    find "${DEB_SOFT_DIRS}" -type d -exec chmod 0755 {} + 2>/dev/null || true
+    find "${DEB_SOFT_DIRS}" -type f -perm -u+x -exec chmod 0755 {} + 2>/dev/null || true
+    find "${DEB_SOFT_DIRS}" -type f ! -perm -u+x -exec chmod 0644 {} + 2>/dev/null || true
 }
 
 function create_install()
@@ -395,6 +464,7 @@ function create_install()
     
     create_and_install
     copy_file_to_deb_directory
+    normalize_permissions
     
     # 使用固定的包名，不包含项目和oem信息
     build_package="rolling_linux"

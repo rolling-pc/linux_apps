@@ -1,0 +1,96 @@
+========================================================================
+CUSTOM BINARY REDISTRIBUTION LICENSE
+for rolling_ma
+========================================================================
+
+Copyright (c) 2025-2026 Rolling Wireless S.a.r.l.  All rights reserved.
+
+This license applies to the single prebuilt file in this directory (the
+"rolling_ma Binary"):
+
+    File                                            Size (bytes)  SHA-256
+    ----------------------------------------------------------------------
+    rolling_ma                                             65968      b2b4d14ffd4742d193d5b6e527d7e0fe6016d6272a8b0bbfe6fd0ed84168be9f
+
+    Installed by the package as:
+        /opt/rolling/rolling_ma_service/rolling_ma
+
+
+1.  SCOPE AND BACKGROUND
+
+    rolling_ma is the ModemManager FCC-unlock helper of this project.  It is
+    distributed as a prebuilt x86-64 ELF executable: the translation units it
+    was built from (rolling_ma_main.c, rolling_ma_at.c, sha256.c, dmidecode.c)
+    are not published in this repository, and this directory carries no
+    CMakeLists.txt, so nothing here is compiled from source.
+
+    rolling_ma is therefore NOT covered by the GNU Lesser General Public
+    License version 2.1 that applies to the published source code of this
+    project (see the LICENSE file in the top-level directory, SECTION A), and
+    it cannot be rebuilt from the published sources -- it does not meet the
+    Debian Free Software Guidelines requirement that the preferred form for
+    modification be available.
+
+    Redistribution in binary form is granted by the copyright holder under
+    this license.  The repository-level LICENSE file states the same grant in
+    its SECTION B; this file is the self-contained copy that travels with the
+    binary.
+
+
+2.  GRANT
+
+    Redistribution and use of the rolling_ma Binary in binary form are
+    permitted, provided that the following conditions are met:
+
+    1.  Redistributions in binary form must reproduce the copyright notice
+        above, this license and the disclaimer in section 3 in the
+        documentation and/or other materials provided with the distribution.
+
+    2.  The rolling_ma Binary may be redistributed only in unmodified form.
+        A copy of this license must accompany every redistribution: either
+        this file, or a document that reproduces it in full -- for example
+        the copyright file of a binary package that ships it
+        (/usr/share/doc/linux-apps/copyright in the Debian package).
+        Verifying a copy against the SHA-256 digest above is the recommended
+        way to establish that it is unmodified.
+
+    3.  Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products derived from
+        this binary without specific prior written permission.
+
+    4.  All rights not expressly granted above are reserved by the copyright
+        holder, including the right to modify the rolling_ma Binary and to
+        redistribute it in source form.  Requests for source access or for
+        additional rights should be addressed to:
+
+            Qifeng Liu <qifeng.liu@rollingwireless.com>
+
+    5.  rolling_ma incorporates code derived from dmidecode, which is
+        licensed under the GNU General Public License, version 2, by its
+        original authors (the binary references dmidecode.c and the SMBIOS
+        type-1 "SKU Number" lookup it performs).  Nothing in this license
+        restricts any rights granted by the GNU GPL with respect to that
+        dmidecode-derived code, and the corresponding source code will be
+        made available on written request, as required by section 3 of the
+        GNU GPL version 2.
+
+
+3.  DISCLAIMER
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT
+    HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+========================================================================
+SPDX-License-Identifier: LicenseRef-Rolling-binary-1.0
+Debian short name: Rolling-binary-1.0 (see debian/copyright)
+========================================================================

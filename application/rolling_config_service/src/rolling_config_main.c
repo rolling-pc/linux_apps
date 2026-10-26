@@ -2,8 +2,8 @@
  * Copyright (C) 2025 Rolling Corporation.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License version
- * 2 as published by the Free Software Foundation.
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -96,8 +96,7 @@ void log_set(int argc, char *argv[])
     } while (option != -1);
 }
 
-static char *inhibit_cookie = NULL;
-static GMainLoop *loop = NULL;
+
 static guint timeout_id = 0;
 static int inhibit_fd = -1;
 GDBusProxy *proxy =NULL;
@@ -122,6 +121,13 @@ inhibit_done (GObject      *source_object,
     GUnixFDList *out_fd_list = NULL;
     GVariant *result = g_dbus_proxy_call_with_unix_fd_list_finish(
         G_DBUS_PROXY(source_object), &out_fd_list, res, &error);
+        if (result == NULL) {
+        ROLLING_LOG_ERROR("Inhibit call failed: %s\n", error->message);
+        g_error_free(error);
+        *inhibit_fd_ptr = -1;
+        return;
+    }
+    g_variant_unref(result);
     if (out_fd_list != NULL) {
         int fd = g_unix_fd_list_get(out_fd_list, 0, &error);
         if (error != NULL) {
@@ -229,7 +235,7 @@ static void on_signal_received(GDBusConnection *connection, const gchar *sender_
     gboolean going_to_sleep;
     char respdata[32] = {0};
     static char prestatus;
-    bool needhandle =false;
+    
     g_variant_get(parameters, "(b)", &going_to_sleep);
 
     if (going_to_sleep) {
@@ -244,7 +250,7 @@ static void on_signal_received(GDBusConnection *connection, const gchar *sender_
         ROLLING_LOG_INFO("get radio prestatus :%c",prestatus);
         if(NULL == strchr(respdata, '4'))
         {
-            needhandle = true;
+            
             memset(respdata, 0, sizeof(respdata));
             send_message_to_helper(SET_RADIO_STATUS, "4", respdata);
             ROLLING_LOG_INFO("set radio status :%s", "4");
@@ -314,12 +320,12 @@ extern void file_test_data(void);
 int main(int argc, char **argv)
 {
     bool result = 0;
-    int get_device_mode_method = 0;
-    pthread_t dbus_tid;
+    
+    
     pthread_t event_tid;
     pthread_t dynamic_tid;
     pthread_t suspend_tid;
-    void *dbus_result = NULL;
+    
     void *event_result = NULL;
     void *dynamic_result = NULL;
     void *suspend_result = NULL;

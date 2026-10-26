@@ -13,7 +13,7 @@
 # *
 # * Copyright (C) 2025, Rolling Wireless S.a.r.l.
 # */
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.10)
 project(rolling_flash_service)
 # 版本配置
 set(FLASH_MAJOR_VERSION 2)

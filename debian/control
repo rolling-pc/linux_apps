@@ -1,25 +1,47 @@
 Source: linux-apps
 Section: net
 Priority: optional
-Maintainer: yanfuqiang
-Build-Depends: 
- cmake, 
- libmbim-glib-dev,
- debhelper-compat (= 12),
- dh-modaliases,
- build-essential,
+Maintainer: Qifeng Liu <qifeng.liu@rollingwireless.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake (>= 3.15),
  pkg-config,
  libglib2.0-dev,
  libxml2-dev,
  libudev-dev,
  libdbus-1-dev,
- libmm-glib-dev
-Standards-Version: 4.5.0
-#Homepage: <insert the upstream URL, if relevant>
+ libmbim-glib-dev,
+ libmm-glib-dev,
+ libfwupd-dev
+Standards-Version: 4.7.4
+Rules-Requires-Root: no
+Homepage: https://github.com/rolling-pc/linux_apps
 
-Package: linux-apps
-Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends},modemmanager
-XB-Modaliases: ${modaliases}
-Description: WWAN Linux apps.
-
+Package: linux-apps-mtk-rw350r-dell
+Architecture: amd64
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ modemmanager,
+ udev
+Recommends: fwupd,
+ fastboot
+Description: WWAN Linux services for Rolling Wireless modem modules
+ This package provides the userspace services used to manage Rolling
+ Wireless WWAN modules on Linux:
+ .
+  * rolling_helper - D-Bus API broker for the other services
+  * rolling_config - OEM and module configuration service
+  * rolling_flash  - firmware update / switch / recovery service
+  * rolling_ma     - ModemManager FCC unlock helper
+ .
+ The services are shipped as systemd units and communicate over the system
+ D-Bus.  The firmware images themselves are not part of this package; they
+ are supplied separately by the OEM.
+ .
+ One binary package is produced per (project, OEM) pair, because the helper
+ service and the configuration defaults differ between them.  Select the pair
+ at build time through debian/rules; see debian/README.Debian.
+ .
+ ModemManager is required at runtime; fwupd is recommended because the
+ firmware update path uses its fastboot plugin.

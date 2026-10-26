@@ -1,3 +1,55 @@
+========================================================================
+PROJECT LICENSING OVERVIEW
+========================================================================
+
+1.  SOURCE CODE (Open Source / DFSG-Compliant)
+
+    All source code files published in this repository (*.c, *.h,
+    CMakeLists.txt, debian/, script/, cmake_config/, rw101_config/,
+    rw350r_config/) are released under the GNU Lesser General Public
+    License, version 2.1 (LGPL-2.1), unless explicitly stated otherwise.
+    See "SECTION A: GNU LESSER GENERAL PUBLIC LICENSE VERSION 2.1"
+    below; the same text is kept verbatim in the COPYING file.
+
+    Explicit exceptions (see debian/copyright for the full list):
+
+        application/3rd/iniparser/*                 MIT
+        application/3rd/safestringlib/*             MIT
+        application/3rd/qdl/*                       BSD-3-clause
+        application/include/common/rolling_list.h   GPL-2
+            (derived from the Linux kernel include/linux/list.h)
+
+2.  PREBUILT BINARIES / LIBRARIES (Proprietary / Custom Redistribution)
+
+    The prebuilt files located at
+
+        binary_deb/common_lib/           the four static archives
+                                           libcode.a
+                                           libmtk_rw350r_dell_2.0.25.a
+                                           librolling_config_service_2.0.11.a
+                                           librolling_flash_service_2.0.19.a
+        application/rolling_ma_service/  rolling_ma, the FCC-unlock helper
+
+    are distributed under the Custom Binary Redistribution License.
+    See "SECTION B: CUSTOM BINARY REDISTRIBUTION LICENSE" below.  Each of
+    those two directories ships its own copy of that license, covering the
+    artefacts it contains:
+
+        binary_deb/common_lib/LICENSE
+        application/rolling_ma_service/LICENSE
+
+    This repository publishes the service entry points (rolling_config_main.c,
+    rolling_flash_main.c, rolling_helper_main.c), the headers and the
+    D-Bus / systemd / udev integration, but the remaining translation units
+    compiled into these artefacts are not published here.  The artefacts
+    therefore cannot be rebuilt from this repository and are covered by the
+    copyright holder's binary redistribution grant in Section B instead of
+    by LGPL-2.1.
+
+========================================================================
+SECTION A: GNU LESSER GENERAL PUBLIC LICENSE, VERSION 2.1
+========================================================================
+
                   GNU LESSER GENERAL PUBLIC LICENSE
                        Version 2.1, February 1999
 
@@ -502,3 +554,71 @@ necessary.  Here is a sample; alter the names:
   Ty Coon, President of Vice
 
 That's all there is to it!
+
+
+========================================================================
+SECTION B: CUSTOM BINARY REDISTRIBUTION LICENSE
+========================================================================
+
+Copyright (c) 2025-2026 Rolling Wireless S.a.r.l.  All rights reserved.
+
+This license applies to the prebuilt files shipped in this repository
+(the "Prebuilt Binaries"):
+
+    binary_deb/common_lib/libcode.a
+    binary_deb/common_lib/libmtk_rw350r_dell_2.0.25.a
+    binary_deb/common_lib/librolling_config_service_2.0.11.a
+    binary_deb/common_lib/librolling_flash_service_2.0.19.a
+
+    application/rolling_ma_service/rolling_ma
+
+The Prebuilt Binaries are compiled from internal sources that are not
+published in this repository, so that they ship in object/executable form
+only.  Each directory carries a self-contained copy of this license -- with
+the file sizes and SHA-256 digests of the artefacts it covers -- so that the
+artefacts keep their terms when they are redistributed on their own:
+
+    binary_deb/common_lib/LICENSE            (the four static archives)
+    application/rolling_ma_service/LICENSE   (rolling_ma)
+
+Redistribution and use of the Prebuilt Binaries in binary form are
+permitted, provided that the following conditions are met:
+
+1.  Redistributions in binary form must reproduce the above copyright
+    notice, this license and the disclaimer below in the documentation
+    and/or other materials provided with the distribution.
+
+2.  The Prebuilt Binaries may be redistributed only in unmodified form.  A
+    copy of this license must accompany every redistribution: either the
+    copy shipped next to the artefacts, or a document that reproduces it
+    in full (for example debian/copyright of the Debian package).
+
+3.  Neither the name of the copyright holder nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+4.  All rights not expressly granted above are reserved by the copyright
+    holder, including the right to modify the Prebuilt Binaries and to
+    redistribute them in source form.  Requests for source access or for
+    additional rights should be directed to the maintainer address given
+    in debian/copyright.
+
+5.  The rolling_ma executable incorporates code derived from dmidecode,
+    which is licensed under the GNU General Public License, version 2, by
+    its original authors.  Nothing in this license restricts any rights
+    granted by that license with respect to the dmidecode-derived code,
+    and the corresponding source code will be made available on written
+    request, as required by the GNU GPL version 2, section 3.
+
+DISCLAIMER: THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
+BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
+COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+========================================================================

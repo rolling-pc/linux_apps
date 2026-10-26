@@ -2,8 +2,8 @@
  * Copyright (C) 2025 Rolling Corporation.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License version
- * 2 as published by the Free Software Foundation.
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -67,7 +67,7 @@ rolling_helperm_main_receiver_init()
 /* mbim thread func can't be blocked at any time! */
 gint helper_mbim_thread(gint argc, char *argv[])
 {
-    guint   owner_id        = 0;
+    
     gint    ret             = RET_ERROR;
 
     ROLLING_LOG_OPEN ("helper_mbim_analyzer");
@@ -171,7 +171,7 @@ static void rolling_helperd_device_check_thread_cleanup(void)
 static gint
 rolling_helperd_device_check_thread_init()
 {
-    int      ret                = RET_ERROR;
+    
 
     // If thread already exists, return success directly
     if (g_dev_check_thread != NULL) {

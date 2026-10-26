@@ -2,8 +2,8 @@
  * Copyright (C) 2025 Rolling Corporation.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License version
- * 2 as published by the Free Software Foundation.
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -132,9 +132,7 @@ void open_log(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
     flash_info checkInfo;
-    GDBusConnection *conn = NULL;
-    GError *connerror = NULL;
-    GError *proxyerror = NULL;
+    
     bool new_pkg = FALSE;
     bool need_flash_flag = FALSE;
     bool normal_port = FALSE;

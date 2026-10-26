@@ -14,7 +14,7 @@
 # * Copyright (C) 2025, Rolling Wireless S.a.r.l.
 # */
 
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.10)
 
 if(NOT ${BUILD_LIB} STREQUAL "yes")
     add_subdirectory(3rd)

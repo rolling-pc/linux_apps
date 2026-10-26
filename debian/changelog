@@ -1,6 +1,46 @@
-linux-apps (2.0.0) UNRELEASED; urgency=low
+linux-apps (2.1.9) unstable; urgency=medium
 
-  * Initial release. Closes: #nnnn
-    <nnnn is the bug number of your ITP>
+  * Initial release.
+    - rolling_helper, rolling_config, rolling_flash and rolling_ma
+      services, shipped with systemd units and a D-Bus policy.
+    - udev rules for WWAN port type detection.
+    - FCC unlock helpers for ModemManager.
+  * Built with the debhelper sequencer (dh 13); files are staged through
+    DESTDIR so the build is reproducible.
+  * Packaged as a native source package ("3.0 (native)", version 2.1.9).
+    The source tree is self-contained, so no separate orig tarball has to be
+    shipped and dpkg-buildpackage succeeds both with and without -b.
+  * Restructured the top-level LICENSE file: SECTION A is the LGPL-2.1 text
+    covering the published sources; SECTION B is a new Custom Binary
+    Redistribution License covering the prebuilt artefacts -- the four .a
+    static archives in binary_deb/common_lib/ and the rolling_ma helper in
+    application/rolling_ma_service/ -- whose sources are not published in
+    this repository.  A self-contained copy of that grant ships next to each
+    group of artefacts (binary_deb/common_lib/LICENSE and
+    application/rolling_ma_service/LICENSE), with file sizes and SHA-256
+    digests included.  debian/copyright declares both locations under the
+    matching "Rolling-binary-1.0" license.
+  * rolling_ma now lives in application/rolling_ma_service/; the upstream
+    "install" helper looks it up there before falling back to the old
+    binary_deb/ locations.
+  * The per-file license headers were normalised to LGPL-2.1 so that they
+    agree with the top-level LICENSE, COPYING and debian/copyright.
+    application/include/common/rolling_list.h stays GPL-2 because it is
+    derived from the Linux kernel.
+  * Dropped the leftover bare permission tokens from the install(DIRECTORY)
+    calls in CMakeLists.txt.  install(DIRECTORY) only accepts them after
+    FILE_PERMISSIONS/DIRECTORY_PERMISSIONS; written bare they are parsed as
+    one more source directory and "cpack" aborted with
+    "file INSTALL cannot find .../OWNER_EXECUTE".  Modes now come from the
+    staged tree, which the upstream "install" helper normalises to 0755/0644,
+    so the CPack and debhelper paths stage identical permissions.
+  * The install list is now generated.  debian/linux-apps.install.in holds
+    every path any supported (project, OEM) pair can produce, and
+    override_dh_auto_install expands it into debian/linux-apps.install,
+    dropping entries that matched nothing (dh_install aborts with "missing
+    files" on those) and creating the empty directories CPack ships
+    (rolling_fw_pkg/, and rolling_helper_service/ when BUILD_DOWN_TOOL is
+    off).  The previous static list was truncated by the generator, so
+    dh_install installed only the MA helper and dh_missing aborted the build.
 
- -- yanfuqiang Mon, 04 Dec 2023 14:22:39 +0800
+ -- Qifeng Liu <qifeng.liu@rollingwireless.com>  Wed, 21 Oct 2026 11:10:00 +0800

@@ -1,31 +1,66 @@
-#!/bin/bash
-#remove vid:pid link file befor packge remove
-systemctl daemon-reload
+#!/bin/sh
+# postrm for linux-apps.
+#
+# SINGLE SOURCE OF TRUTH: the CPack build embeds script/<name> verbatim via
+# CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA, and debian/<name> is a byte-for-byte copy
+# of this file.  Edit here, then re-copy to debian/.
+#
+# No #DEBHELPER# token on purpose; see the note in script/preinst.
 
-if [ -d "/usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d" ]; then
-    if [ -d "/opt/rolling/rolling_ma_service" ]; then
-        rm -rf /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
-    fi
-elif [ -d "/usr/lib64/ModemManager/fcc-unlock.d" ]; then
-    if [ -d "/opt/rolling/rolling_ma_service" ]; then
-        rm -rf /usr/lib64/ModemManager/fcc-unlock.d
-    fi
-fi
+set -e
 
-if [ -d "/etc/opt/rolling/config_file/rolling_config_service/" ]; then
-    rm -rf /etc/opt/rolling/config_file/rolling_config_service/
-fi
+FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
+MM_DROPIN="/etc/systemd/system/ModemManager.service.d/50-rolling-linux-apps.conf"
+FWUPD_QUIRK_FILE="/usr/share/fwupd/quirks.d/rolling-linux-apps.quirk"
 
-if [ -d "/etc/opt/rolling/config_file/rolling_flash_service/" ]; then
-    rm -rf /etc/opt/rolling/config_file/rolling_flash_service/
-fi
-rm -rf /etc/opt/rolling/config_file/
+case "$1" in
+    remove|purge)
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        exit 0
+        ;;
+    *)
+        echo "postrm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
 
-if [ -d "/etc/opt/rolling/run" ]; then
+have_systemctl() {
+    command -v systemctl >/dev/null 2>&1
+}
+
+# Remove the files this package created outside its own payload: the FCC unlock
+# helpers copied into ModemManager's plugin directory, the fwupd quirk drop-in
+# and the ModemManager systemd drop-in.  Only our own file names are touched;
+# directories and files belonging to other packages are left alone.
+remove_runtime_files() {
+    for mm in /usr/lib/*/ModemManager /usr/lib/ModemManager /usr/lib64/ModemManager; do
+        [ -d "$mm" ] || continue
+        for id in $FCC_IDS; do
+            rm -f "${mm}/fcc-unlock.d/${id}" 2>/dev/null || true
+        done
+    done
+
+    rm -f "$FWUPD_QUIRK_FILE" 2>/dev/null || true
+    rm -f "$MM_DROPIN" 2>/dev/null || true
+    rmdir /etc/systemd/system/ModemManager.service.d 2>/dev/null || true
+    return 0
+}
+
+remove_runtime_files
+
+# Configuration and runtime state are only removed on purge (Policy 6.5,
+# 10.7.3).  A plain remove leaves /etc/opt/rolling untouched so a later
+# reinstall keeps the operator's settings.
+if [ "$1" = "purge" ]; then
+    rm -rf /etc/opt/rolling/config_file
     rm -rf /etc/opt/rolling/run
+    rm -rf /etc/opt/rolling/rolling_fw_pkg
+    rmdir /etc/opt/rolling 2>/dev/null || true
 fi
 
-if [ ! -d "/etc/opt/rolling/rolling_fw_pkg/rolling_config_file" ]; then
-    rm -rf /etc/opt/rolling/rolling_fw_pkg/
-    rm -rf /etc/opt/rolling/
+if have_systemctl; then
+    systemctl daemon-reload 2>/dev/null || true
 fi
+
+exit 0

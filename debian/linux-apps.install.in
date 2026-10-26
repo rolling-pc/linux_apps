@@ -1,0 +1,61 @@
+# debian/linux-apps.install.in -- install manifest template, expanded by
+# debian/rules into debian/linux-apps.install.  See dh_install(1).
+#
+# This file is NOT read by debhelper directly.  dh_install looks for
+# debian/linux-apps.install (the package-specific name); the .in suffix keeps
+# the template apart from the generated list.
+#
+# Source paths are relative to the staged tree.  CMakeLists.txt installs with
+# RELATIVE destinations, debian/rules passes -DCMAKE_INSTALL_PREFIX=/ and
+# debhelper supplies DESTDIR=debian/tmp, so every staged file lands under
+# debian/tmp/.
+#
+# Why a template rather than a static list:
+#   * dh_install aborts with "missing files, aborting" when a pattern matches
+#     nothing, and the staged tree is target-dependent:
+#       - opt/rolling/rolling_helper_service/ is empty unless
+#         BUILD_DOWN_TOOL=yes (it otherwise only carries the qdl tools),
+#       - opt/rolling/rolling_ma_service/ only exists for BUILD_MA=yes,
+#       - opt/rolling/rolling_fw_pkg/ is an empty runtime drop directory.
+#   * compat 13 runs dh_missing with --fail-missing, so a staged file that no
+#     entry claims aborts the build as well.
+# debian/rules therefore prunes entries that matched nothing on the current
+# target.  When the directory was staged but is empty, it creates that empty
+# directory directly in the package tree: dh_install cannot ship directories,
+# while the CPack build does, so this keeps both payloads identical.
+# Comment lines and blank lines are skipped by the generator.
+
+# --- Services: binaries plus their shipped .ini defaults -------------------
+# rolling_helper_service/ is recursive because it also carries the
+# rolling_helper_tools/ subdirectory (qdl) on BUILD_DOWN_TOOL=yes targets.
+opt/rolling/rolling_config_service/*        opt/rolling/rolling_config_service
+opt/rolling/rolling_flash_service/*         opt/rolling/rolling_flash_service
+opt/rolling/rolling_helper_service/*        opt/rolling/rolling_helper_service
+
+# --- FCC unlock helper (BUILD_MA=yes targets only) -------------------------
+opt/rolling/rolling_ma_service/*            opt/rolling/rolling_ma_service
+
+# --- Empty runtime drop directory ------------------------------------------
+# Matches nothing by design; the generator turns it into an empty directory in
+# the package tree.
+opt/rolling/rolling_fw_pkg/*                opt/rolling/rolling_fw_pkg
+
+# --- systemd units and their environment drop-ins --------------------------
+# Policy 4.7.1 (10.1): /lib is a symlink to /usr on modern systems; install
+# into usr/lib/systemd/system (dh_install destinations are relative to the
+# package root, i.e. /).
+usr/lib/systemd/system/rolling_config.service   usr/lib/systemd/system
+usr/lib/systemd/system/rolling_flash.service    usr/lib/systemd/system
+usr/lib/systemd/system/rolling_helper.service   usr/lib/systemd/system
+usr/lib/systemd/system/rolling_config.d/*       usr/lib/systemd/system/rolling_config.d
+usr/lib/systemd/system/rolling_flash.d/*        usr/lib/systemd/system/rolling_flash.d
+usr/lib/systemd/system/rolling_helper.d/*       usr/lib/systemd/system/rolling_helper.d
+
+# --- D-Bus system bus policy for rolling_helper ----------------------------
+usr/share/dbus-1/system.d/com.rolling.helper.conf  usr/share/dbus-1/system.d
+
+# --- udev rules for WWAN port type detection -------------------------------
+# 76-mm-* comes from create_rule(), 99-mm-* from create_lvfs_rule(); both are
+# always generated.
+usr/lib/udev/rules.d/76-mm-rolling-linux-apps-port-types.rules  usr/lib/udev/rules.d
+usr/lib/udev/rules.d/99-mm-rolling-linux-apps-port-types.rules  usr/lib/udev/rules.d

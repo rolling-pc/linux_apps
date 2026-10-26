@@ -1,0 +1,10 @@
+# Paths deliberately kept out of every binary package; ignored by dh_missing.
+# See dh_missing(1).
+#
+# debian/linux-apps.install.in lists the complete set of files the upstream
+# install helper stages, so nothing should normally show up here.  This file
+# stays as a guard:
+# compat 13 runs dh_missing with --fail-missing, and a future upstream change
+# that stages an extra file would otherwise abort the build.  When that happens
+# the fix is to decide whether the file belongs in the package -- if it does,
+# add it to debian/linux-apps.install.in; if it does not, list it here.

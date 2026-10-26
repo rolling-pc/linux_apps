@@ -1,0 +1,28 @@
+# Lintian overrides for the binary package; the file name must match the
+# Package: field in debian/control.  Every entry below names the
+# debian/README.Debian section that records the decision.
+
+# FHS 3.0 explicitly permits distributions to install software in /opt
+# ("Distributions may install software in /opt").  Policy 9.1.1 only requires
+# FHS conformance.  See "Layout: /opt/rolling".
+linux-apps-mtk-rw350r-dell: dir-or-file-in-opt *
+
+# dh_strip and dh_dwz are disabled so that the CPack and debhelper payloads
+# stay byte-identical (see "Two build paths, one payload").  rolling_ma must
+# additionally keep its exact SHA-256 digest, which is registered in its
+# LICENSE copy.
+linux-apps-mtk-rw350r-dell: unstripped-binary-or-object *
+
+# dh_installsystemd is disabled for the same CPack-parity reason; the
+# maintainer scripts handle enable/start/stop explicitly and must work in
+# environments without deb-systemd-helper.
+linux-apps-mtk-rw350r-dell: maintainer-script-calls-systemctl *
+
+# /opt/rolling/rolling_fw_pkg is a firmware drop directory consumed by the
+# flash service; it is intentionally empty on a fresh install.
+linux-apps-mtk-rw350r-dell: package-contains-empty-directory *
+
+# "recive"/"swtich" are compiled into the prebuilt static archives under
+# binary_deb/common_lib/ and into rolling_ma, none of which have sources in
+# this tree (see "Licensing").
+linux-apps-mtk-rw350r-dell: spelling-error-in-binary *
