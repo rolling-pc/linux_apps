@@ -1,0 +1,91 @@
+========================================================================
+CUSTOM BINARY REDISTRIBUTION LICENSE
+for the prebuilt static archives in binary_deb/common_lib/
+========================================================================
+
+Copyright (c) 2025-2026 Rolling Wireless S.a.r.l.  All rights reserved.
+
+This license applies to each of the following prebuilt files (the
+"Prebuilt Libraries"):
+
+    File                                      Size (bytes)  SHA-256
+    ------------------------------------------------------  ----------------------------------------------------------------
+    libcode.a                                        91472  7af4e77bf2ad3c7e20eda4507fc3717ff4401525c5090385d035748d4b924b69
+    libmtk_rw350r_dell_2.0.25.a                     452376  8d16e1cc88d3ed711f4983f9ea12505b85555f6e7b2a1bd46fc677b0e632d968
+    librolling_config_service_2.0.11.a              287702  e589f52c939322ad1537518cc7e712b4f97944d1059bbefe4ebaf73690b08346
+    librolling_flash_service_2.0.19.a               275682  d73cd2a0fe7f91ed91c79dd5ceb39efecd2f41e321545a98ad4dbcb914476e96
+
+
+1.  SCOPE AND BACKGROUND
+
+    The Prebuilt Libraries are the static archives that the service
+    binaries of this project link against: libcode.a is linked into
+    rolling_helper, libmtk_<project>_<oem>_<version>.a supplies the
+    platform-specific helper layer, and the two librolling_*_service_*.a
+    archives carry the config and flash service implementations.
+
+    They are compiled from internal sources that are not published in this
+    repository.  That repository publishes only the service entry points
+    (rolling_config_main.c, rolling_flash_main.c, rolling_helper_main.c),
+    the headers and the D-Bus / systemd / udev integration; the translation
+    units compiled into these archives (rolling_config_parse.c,
+    rolling_flash_update.c, rolling_helper_adapter.c and others -- 24 in total) are
+    not part of it.
+
+    The Prebuilt Libraries therefore cannot be rebuilt from the published
+    sources, and they are NOT covered by the GNU Lesser General Public
+    License version 2.1 that applies to the published source code (see the
+    LICENSE file in the top-level directory, SECTION A).  Redistribution in
+    binary form is granted by the copyright holder under this license.  The
+    repository-level LICENSE file states the same grant in its SECTION B;
+    this file is the self-contained copy that travels with the archives.
+
+
+2.  GRANT
+
+    Redistribution and use of the Prebuilt Libraries in binary form are
+    permitted, provided that the following conditions are met:
+
+    1.  Redistributions in binary form must reproduce the copyright notice
+        above, this license and the disclaimer in section 3 in the
+        documentation and/or other materials provided with the distribution.
+
+    2.  The Prebuilt Libraries may be redistributed only in unmodified
+        form.  A copy of this license must accompany every redistribution:
+        either this file, or a document that reproduces it in full -- for
+        example the copyright file of a binary package built from them
+        (/usr/share/doc/linux-apps/copyright in the Debian package).
+        Verifying a copy against the SHA-256 digests above is the
+        recommended way to establish that a copy is unmodified.
+
+    3.  Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products derived
+        from these archives without specific prior written permission.
+
+    4.  All rights not expressly granted above are reserved by the
+        copyright holder, including the right to modify the Prebuilt
+        Libraries and to redistribute them in source form.  Requests for
+        source access or for additional rights should be addressed to:
+
+            Qifeng Liu <qifeng.liu@rollingwireless.com>
+
+
+3.  DISCLAIMER
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT
+    HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+========================================================================
+SPDX-License-Identifier: LicenseRef-Rolling-binary-1.0
+Debian short name: Rolling-binary-1.0 (see debian/copyright)
+========================================================================

@@ -1,6 +1,0 @@
-alias usb:v2CB7p01A2d*dc*dsc*dp*ic02isc0Eip00in* oem linux-apps
-alias usb:v2CB7p0301d*dc*dsc*dp*ic02isc0Eip00in* oem linux-apps
-alias usb:v413Cp8209d*dc*dsc*dp*ic02isc0Eip00in* oem linux-apps
-alias usb:v413Cp8211d*dc*dsc*dp*ic02isc0Eip00in* oem linux-apps
-alias usb:v413Cp8213d*dc*dsc*dp*ic02isc0Eip00in* oem linux-apps
-alias usb:v413Cp8215d*dc*dsc*dp*ic02isc0Eip00in* oem linux-apps
