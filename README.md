@@ -29,7 +29,7 @@ Licensing is described in one place, the top-level LICENSE file:
 # Notice
   - Services must be used with fw_package. Before installing services, ensure that fw_package has been installed. Obtain the fw package from the corresponding OEM.<br>
   - fw_switch uses fastboot; you can install fastboot with `sudo apt-get install fastboot`<br>
-  - This application runs on Ubuntu 24.04; Fedora is in testing; other Ubuntu versions and other OSes are unverified.
+  - This application is packaged for Ubuntu 24.04 by default; multi-distro debs (22.04 jammy / 26.04 resolute) are supported via `script/build_multi_distro.sh`. Fedora and other OSes are unverified.
 
 # Building on Ubuntu
 
@@ -87,7 +87,8 @@ cd /path/to/upstream_github/linux_apps
 
 `rolling_ma` is looked up, in order, at the CMake build output, then
 `binary_deb/common_lib-<distro>/rolling_ma` (only if a distro-specific variant
-is needed), then `application/rolling_ma_service/rolling_ma`.
+is needed), then `application/rolling_ma_service/rolling_ma`, then the generic
+prebuilt `binary_deb/common_lib/rolling_ma`.
 
 Library Ubuntu version must match the deb target (22.04 libs for jammy, 26.04 for resolute). Do not link 26.04 libs on a 22.04 host.
 
@@ -108,9 +109,9 @@ Library Ubuntu version must match the deb target (22.04 libs for jammy, 26.04 fo
 - Stop service:<br>
   sudo systemctl stop rolling_xxx.service<br>
 
-## 4. Items not copied when installing (setup.sh)
+## 4. Items not copied when installing (deb package)
 
-When you build with `setup.sh`, files under `service/` are copied to the system directories. The following items are **not** copied:
+When you install the deb package (built via the `install` script or debian packaging), files are copied to the system directories. The following items are **not** copied:
 
 - **udev rules (usr/lib/udev/):** They are not copied because ModemManager already includes the content of these rules; no need to install them again.
 - **env.conf (lib/systemd/system/rolling_*.d/env.conf):** These files only set environment variable paths (e.g. LD_LIBRARY_PATH). The current build does not use libraries from that path, so they are not needed.
