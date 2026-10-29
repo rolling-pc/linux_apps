@@ -2,8 +2,8 @@
  * Copyright (C) 2025 Rolling Corporation.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public License
- * version 2.1 as published by the Free Software Foundation.
+ * modify it under the terms of the GNU General Public License version
+ * 2 as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,6 +23,7 @@
 
 extern gboolean sim_status_handler(RollingGdbusHelper *object, const char *value, gpointer userdata);
 extern gboolean fastboot_status_handler(RollingGdbusHelper *object, const char *value, gpointer userdata);
+extern void *rolling_monitor_snap_package(void *arg);
 
 pthread_mutex_t flash_mutex;
 pthread_cond_t lvfs_extract_cond;
@@ -108,6 +109,12 @@ void rolling_monitor_package_run()
     pthread_create(&ptid, NULL, &rolling_monitor_package, NULL);
     ROLLING_LOG_INFO("monitor package create\n");
 }
+void rolling_monitor_snap_package_run()
+{
+    pthread_t ptid;
+    pthread_create(&ptid, NULL, &rolling_monitor_snap_package, NULL);
+    ROLLING_LOG_INFO("[%s] snap package monitor thread create!\n", __func__);
+}
 void rolling_firmware_recovery_run()
 {
     pthread_t ptid;
@@ -132,7 +139,9 @@ void open_log(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
     flash_info checkInfo;
-    
+    GDBusConnection *conn = NULL;
+    GError *connerror = NULL;
+    GError *proxyerror = NULL;
     bool new_pkg = FALSE;
     bool need_flash_flag = FALSE;
     bool normal_port = FALSE;
@@ -164,6 +173,7 @@ int main(int argc, char *argv[])
 
     /* create monitor package thread */
     rolling_monitor_package_run();
+    rolling_monitor_snap_package_run();
     /* create recovery thread */
     rolling_firmware_recovery_run();
     /* create lvfs download thrread */

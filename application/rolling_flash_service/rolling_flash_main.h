@@ -2,8 +2,8 @@
  * Copyright (C) 2025 Rolling Corporation.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public License
- * version 2.1 as published by the Free Software Foundation.
+ * modify it under the terms of the GNU General Public License version
+ * 2 as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -65,6 +65,7 @@ int check_port_state(char *state);
 void open_log(int argc, char *argv[]);
 void rolling_firmware_recovery_run();
 void rolling_monitor_package_run();
+void rolling_monitor_snap_package_run();
 void rolling_check_imei_run();
 
 #endif
