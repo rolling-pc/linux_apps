@@ -3,6 +3,8 @@ This is a Rolling Linux apps set project for WWAN devices.<br>
   **Flash service:** firmware update, switch, recovery.<br>
   **Config service:** OEM configuration function.<br>
   **Helper service:** provides D-Bus API for Flash/Ma/Config service.<br>
+  **Ma service:** provides the rolling_ma binary (ModemManager FCC unlock helper).<br>
+  Note: rolling_ma is provided as a prebuilt binary only and supports Ubuntu 26.04 (resolute) only.
 
 # License
 Licensing is described in one place, the top-level LICENSE file:
@@ -60,6 +62,9 @@ Licensing is described in one place, the top-level LICENSE file:
     `./script/make_deb.sh rpm rw350r lenovo`<br>
     `./script/make_deb.sh deb rw350r dell`<br>
     `./script/make_deb.sh rpm rw350r dell`<br>
+    Or build the deb directly with dpkg (uses debian/ packaging, debhelper 13):<br>
+    `dpkg-buildpackage -us -uc -b`<br>
+    Note: the binary package name follows the (project, OEM) pair selected in debian/rules (e.g. linux-apps-mtk-rw350r-dell).<br>
 
 ### 2.1 Multi-distro deb (Docker, by-lib)
 
@@ -101,6 +106,7 @@ Library Ubuntu version must match the deb target (22.04 libs for jammy, 26.04 fo
   sudo systemctl enable rolling_helper.service<br>
   sudo systemctl enable rolling_flash.service<br>
   sudo systemctl enable rolling_config.service<br>
+  sudo systemctl enable rolling_ma.service<br>
   **Note:** This step must be done so that systemd can find and start the service.<br>
 - Start service:<br>
   sudo systemctl start rolling_xxx.service<br>
