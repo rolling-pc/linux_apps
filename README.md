@@ -96,3 +96,12 @@ When you install the deb package (built via the `install` script or debian packa
 # Release history
 - version 1.0.0<br>
   First version, uploaded to GitHub.<br>
+- version 1.0.2<br>
+  Fixed several known issues.<br>
+- version 1.0.3<br>
+  Fixed several known issues.<br>
+- version 1.0.4<br>
+  Fixed several known issues.<br>
+- version 1.0.5<br>
+  Comply with Debian policy: each service ships its own binary redistribution
+  license.<br>
