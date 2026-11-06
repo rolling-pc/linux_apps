@@ -174,8 +174,6 @@ install(CODE "MESSAGE(\"run install script success.\")")
 message(STATUS "Installation prefix: ${CMAKE_INSTALL_PREFIX}")
 set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
-set(outer_loop_exit FALSE)
-
 # A single set of maintainer scripts serves both BUILD_MA=yes (Dell rw350r,
 # ships rolling_ma + fcc-unlock.d) and BUILD_MA=no (Lenovo rw350r).  The scripts
 # under script/ guard every MA-specific action with an existence check, so they
@@ -211,63 +209,44 @@ macro(rolling_linux_configure_deb_package)
     message(STATUS "Debian package depends: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
 endmacro()
 
-# can only build one deb
-file(GLOB SUBDIRECTORIES "${CMAKE_SOURCE_DIR}/application/rolling_helper_service/*")
-foreach(SUBDIRS ${SUBDIRECTORIES})
-    if(IS_DIRECTORY ${SUBDIRS})
-        get_filename_component(SUBDIR_M ${SUBDIRS} NAME)
-        if (${SUBDIR_M} STREQUAL "common")
-            message(STATUS "Skipping ${SUBDIR_M}")
-            continue()
-        endif()
-        
-        file(GLOB SUBDIR "${SUBDIRS}/*")
-        foreach(SUBDIR_X ${SUBDIR})
-            if(IS_DIRECTORY ${SUBDIR_X})
-                get_filename_component(SUBDIR_N ${SUBDIR_X} NAME)
-                file(GLOB SUBDIR_R "${SUBDIR_X}/*")
-                foreach(SUBDIR_INFO ${SUBDIR_R})
-                    if(IS_DIRECTORY ${SUBDIR_INFO})
-                        get_filename_component(SUBDIR_NAME ${SUBDIR_INFO} NAME)
-                        if ((NOT ${PROJECT_BUILD} STREQUAL ${SUBDIR_N}) OR (NOT ${OEM_BUILD} STREQUAL ${SUBDIR_NAME}))
-                          if ((NOT ${PROJECT_BUILD} STREQUAL OFF ) AND (NOT ${OEM_BUILD} STREQUAL OFF))
-                                message(STATUS "Skipping ${SUBDIR_N}_${SUBDIR_NAME}")
-                                continue()
-                            endif()
-                        endif()
+# --- Packaging: fixed logic for the binary-only tree -------------------------
+#
+# All services ship as prebuilt executables under application/<service>/, so
+# there is no per-platform source tree to walk any more.  The package name
+# keeps the historical linux-apps-<platform>-<project>-<oem> format.
+if(PROJECT_BUILD STREQUAL "rw350r")
+    set(ROLLING_PLATFORM "mtk")
+else()
+    set(ROLLING_PLATFORM "qualcomm")
+endif()
+set(CPACK_PACKAGE_NAME "linux-apps-${ROLLING_PLATFORM}-${PROJECT_BUILD}-${OEM_BUILD}")
 
-                        # if ((${PROJECT_BUILD} STREQUAL ${SUBDIR_N}) AND (${OEM_BUILD} STREQUAL ${SUBDIR_NAME}))
-                        list(LENGTH SUBDIR_INFO SUBDIR_COUNT)
-                        
-                        set(project_path ${SUBDIR_M}_${SUBDIR_N}_${SUBDIR_NAME})
-                        message(STATUS " INSTALL project_path ${project_path}")
-                        set(install_dir ${PROJECT_BINARY_DIR}/release/dpkg/${project_path})
+# 使用install脚本创建的目录结构
+set(deb_soft_dirs "${PROJECT_BINARY_DIR}/release/dpkg")
 
-                        # 使用install脚本创建的目录结构
-                        set(deb_soft_dirs "${PROJECT_BINARY_DIR}/release/dpkg")
-                        
-                        # NOTE: DESTINATION must be RELATIVE.  An absolute
-                        # destination is used verbatim and is NOT relocated by
-                        # DESTDIR, so "cmake --install" would write straight into
-                        # the host /opt and /usr and debhelper would find
-                        # debian/tmp empty.  A relative destination is resolved
-                        # against CMAKE_INSTALL_PREFIX and relocated by DESTDIR,
-                        # which is exactly what dh_auto_install needs.
-                        # debian/rules passes -DCMAKE_INSTALL_PREFIX=/ and dh
-                        # supplies DESTDIR=debian/tmp, giving debian/tmp/opt/...
+# NOTE: DESTINATION must be RELATIVE.  An absolute
+# destination is used verbatim and is NOT relocated by
+# DESTDIR, so "cmake --install" would write straight into
+# the host /opt and /usr and debhelper would find
+# debian/tmp empty.  A relative destination is resolved
+# against CMAKE_INSTALL_PREFIX and relocated by DESTDIR,
+# which is exactly what dh_auto_install needs.
+# debian/rules passes -DCMAKE_INSTALL_PREFIX=/ and dh
+# supplies DESTDIR=debian/tmp, giving debian/tmp/opt/...
 
-                        # Permissions are taken from the staged tree: the
-                        # upstream "install" helper normalises it to 0755 for
-                        # executables/directories and 0644 for data files.
-                        # USE_SOURCE_PERMISSIONS is required: without any
-                        # permission keyword install(DIRECTORY) installs every
-                        # file as 0644 and silently drops the executable bit
-                        # from the service binaries (systemd then fails with
-                        # 203/EXEC).  Do NOT set FILE_PERMISSIONS either --
-                        # it would override the staged modes and make a cpack
-                        # build differ from a dpkg-buildpackage build.
-                        # 安装opt目录 (source has no trailing slash, so the
-                        # "rolling" directory is created under DESTINATION)
+# Permissions are taken from the staged tree: the
+# upstream "install" helper normalises it to 0755 for
+# executables/directories and 0644 for data files.
+# USE_SOURCE_PERMISSIONS is required: without any
+# permission keyword install(DIRECTORY) installs every
+# file as 0644 and silently drops the executable bit
+# from the service binaries (systemd then fails with
+# 203/EXEC).  Do NOT set FILE_PERMISSIONS either --
+# it would override the staged modes and make a cpack
+# build differ from a dpkg-buildpackage build.
+
+# 安装opt目录 (source has no trailing slash, so the
+# "rolling" directory is created under DESTINATION)
                         install(DIRECTORY "${deb_soft_dirs}/opt/rolling"
                                 DESTINATION "opt"
                                 USE_SOURCE_PERMISSIONS)
@@ -299,9 +278,6 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                                 USE_SOURCE_PERMISSIONS)
                         install(CODE "MESSAGE(\"install success!\")")
 
-                    
-                        
-                        set(CPACK_PACKAGE_NAME "linux-apps-${SUBDIR_M}-${SUBDIR_N}-${SUBDIR_NAME}")
                         set(CPACK_PACKAGE_VENDOR "rolling")
 
                         if (${BUILD_DEB} STREQUAL "yes")
@@ -345,20 +321,6 @@ foreach(SUBDIRS ${SUBDIRECTORIES})
                             set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
                                 "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM}")
                         endif()
-                        set(outer_loop_exit TRUE)
-                        break()
-                    endif()
-                endforeach()
-            endif()
-            if(outer_loop_exit)
-                break()
-            endif()
-        endforeach()
-    endif()
-    if(outer_loop_exit)
-        break()
-    endif()
-endforeach()
 
 # set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_CURRENT_BINARY_DIR}/CPackConfig_qualcomm_rw135_lenovo.cmake")
 

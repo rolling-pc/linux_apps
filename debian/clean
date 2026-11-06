@@ -1,9 +1,0 @@
-# Files to remove after the build; see dh_clean(1).
-build/
-debian/tmp/
-debian/files
-debian/linux-apps.substvars
-debian/.debhelper/
-debian/*.debhelper
-debian/*.postinst.debhelper
-debian/*.postrm.debhelper

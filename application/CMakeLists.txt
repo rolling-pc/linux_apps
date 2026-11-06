@@ -14,39 +14,6 @@
 # * Copyright (C) 2025, Rolling Wireless S.a.r.l.
 # */
 
-cmake_minimum_required(VERSION 3.10)
-
-if(NOT ${BUILD_LIB} STREQUAL "yes")
-    add_subdirectory(3rd)
-    if (${BUILD_FLASH} STREQUAL "yes")
-        add_subdirectory(rolling_flash_service)
-    endif()
-    if (${BUILD_CONFIG} STREQUAL "yes")
-        add_subdirectory(rolling_config_service)
-    endif()
-    if(BUILD_MA STREQUAL "yes" OR (DEFINED BUILD_MA_LIB AND BUILD_MA_LIB STREQUAL "yes"))
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rolling_ma_service/CMakeLists.txt")
-            add_subdirectory(rolling_ma_service)
-        endif()
-    endif()
-endif()
-
-
-if(${BUILD_LIB} STREQUAL "yes")
-    add_subdirectory(3rd)
-    if (${BUILD_FLASH} STREQUAL "yes")
-        add_subdirectory(rolling_flash_service) 
-    endif()
-    if (${BUILD_CONFIG} STREQUAL "yes")
-        add_subdirectory(rolling_config_service)
-    endif()
-    if(BUILD_MA STREQUAL "yes" OR (DEFINED BUILD_MA_LIB AND BUILD_MA_LIB STREQUAL "yes"))
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rolling_ma_service/CMakeLists.txt")
-            add_subdirectory(rolling_ma_service)
-        endif()
-    endif()
-endif()
-
-if (${BUILD_HELPER} STREQUAL "yes")
-    add_subdirectory(rolling_helper_service)
-endif()
+# Binary-only tree: all four services ship as prebuilt executables
+# (application/<service>/rolling_<name>).  There is nothing to compile here;
+# packaging is driven by the root CMakeLists.txt and the `install` script.

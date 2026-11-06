@@ -2,10 +2,12 @@
 
 basedir=`cd \`dirname $0\`; pwd`
 BUILD_DIR=${basedir}/build
-APP_DIR="${BUILD_DIR}/application"
+# Binary-only tree: the prebuilt executables live in the source tree, not in
+# the build output.
+APP_DIR="${basedir}/application"
 CONFIG_SERVICE_APP_DIR="${APP_DIR}/rolling_config_service"
-CONFIG_SERVICE_APP_PATH="${APP_DIR}/rolling_config_service/rolling_config*"
-FLASH_SERVICE_APP_PATH="${APP_DIR}/rolling_flash_service/rolling_flash*"
+CONFIG_SERVICE_APP_PATH="${APP_DIR}/rolling_config_service/rolling_config"
+FLASH_SERVICE_APP_PATH="${APP_DIR}/rolling_flash_service/rolling_flash"
 FLASH_SERVICE_APP_DIR="${APP_DIR}/rolling_flash_service"
 HELPER_SERVICE_APP_PATH="${APP_DIR}/rolling_helper_service/"
 MA_SERVICE_COMMON_LIB="${basedir}/binary_deb/common_lib"
@@ -71,7 +73,9 @@ BUILD_FLASH=$(grep -o 'set(BUILD_FLASH "[^"]*"' ${BUILD_DIR}/*_config.cmake | aw
 BUILD_CONFIG=$(grep -o 'set(BUILD_CONFIG "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 BUILD_MA=$(grep -o 'set(BUILD_MA "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 OEM_BUILD=$(grep -o 'set(OEM_BUILD "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
+PROJECT_BUILD=$(grep -o 'set(PROJECT_BUILD "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 echo "OEM_BUILD: ${OEM_BUILD}"
+echo "PROJECT_BUILD: ${PROJECT_BUILD}"
 
 echo "build helper package ${BUILD_HELPER}"
 echo "build down tool package ${BUILD_DOWN_TOOL}"
@@ -103,16 +107,18 @@ function copy_file_to_deb_directory()
     fi
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        cp -raf ${CONFIG_SERVICE_APP_DIR}/*.ini ${DEB_CONFIG_SERVICE_DIR}
         # 使用cp -f命令，不存在时不会报错
         cp -fraf ${CONFIG_SERVICE_APP_PATH} ${DEB_CONFIG_SERVICE_DIR} 2>/dev/null || true
+        # runtime config data, selected per OEM from config_set/<project>_<oem>/
+        cp -f ${CONFIG_SERVICE_APP_DIR}/config_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_CONFIG_SERVICE_DIR}/ 2>/dev/null || true
     fi
 
     if [ "yes" == "${BUILD_FLASH}" ]; then
         DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
-        cp -raf ${FLASH_SERVICE_APP_DIR}/*.ini ${DEB_FLASH_SERVICE_DIR}
         # 使用cp -f命令，不存在时不会报错
         cp -fraf ${FLASH_SERVICE_APP_PATH} ${DEB_FLASH_SERVICE_DIR} 2>/dev/null || true
+        # runtime config data, selected per OEM from flash_set/<project>_<oem>/
+        cp -f ${FLASH_SERVICE_APP_DIR}/flash_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_FLASH_SERVICE_DIR}/ 2>/dev/null || true
     fi
 
     if [ "yes" == "${BUILD_HELPER}" ]; then
@@ -176,6 +182,7 @@ Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 
 [Service]
+WorkingDirectory=/opt/rolling/rolling_config_service
 EnvironmentFile=/usr/lib/systemd/system/rolling_config.d/env.conf
 ExecStart=/opt/rolling/rolling_config_service/rolling_config
 ExecReload=/bin/kill -HUP \$MAINPID
@@ -210,6 +217,7 @@ Description=Firmware Flash Service
 Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 [Service]
+WorkingDirectory=/opt/rolling/rolling_flash_service
 EnvironmentFile=/usr/lib/systemd/system/rolling_flash.d/env.conf
 ExecStart=/opt/rolling/rolling_flash_service/rolling_flash
 ExecReload=/bin/kill -HUP \$MAINPID
@@ -398,10 +406,6 @@ function create_and_install()
         mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
         create_helper_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
         mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/
-        if [ "yes" == "${BUILD_DOWN_TOOL}" ]; then
-            mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/rolling_helper_tools/
-            cp ${BUILD_DIR}/application/3rd/qdl/qdl ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/rolling_helper_tools/
-        fi
     fi
     if [ "yes" == "${BUILD_MA}" ]; then
         DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"

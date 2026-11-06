@@ -76,14 +76,18 @@ function parse_by_lib_flag()
     done
 }
 
-function require_prebuilt_common_lib()
+function require_prebuilt_binaries()
 {
-    if [ ! -d "binary_deb/common_lib" ] || [ -z "$(ls -A binary_deb/common_lib 2>/dev/null)" ]; then
-        echo "ERROR: binary_deb/common_lib is missing or empty." >&2
-        echo "This opensrc tree only supports packaging deb/rpm from prebuilt static libraries." >&2
-        echo "Copy libs from the full dev tree, or run: ./script/build_multi_distro.sh lib <project> <oem> <distro>" >&2
-        exit 1
-    fi
+    # Binary-only tree: packaging needs the prebuilt executables, not static libs.
+    for bin in \
+        application/rolling_config_service/rolling_config \
+        application/rolling_flash_service/rolling_flash \
+        application/rolling_helper_service/rolling_helper; do
+        if [ ! -f "${bin}" ]; then
+            echo "ERROR: prebuilt binary missing: ${bin}" >&2
+            exit 1
+        fi
+    done
 }
 
 function make_project()
@@ -226,7 +230,7 @@ parse_by_lib_flag "$@"
 
 if [[ "deb" == "$1" ]] || [[ "rpm" == "$1" ]]; then
     build_by_lib=1
-    require_prebuilt_common_lib
+    require_prebuilt_binaries
     filtered_args=()
     for arg in "$@"; do
         if [ "$arg" != "--by-lib" ]; then
