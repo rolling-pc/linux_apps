@@ -4,47 +4,54 @@ PROJECT LICENSING OVERVIEW
 
 1.  SOURCE CODE (Open Source / DFSG-Compliant)
 
-    All source code files published in this repository (*.c, *.h,
-    CMakeLists.txt, debian/, script/, cmake_config/, rw101_config/,
-    rw350r_config/) are released under the GNU Lesser General Public
-    License, version 2.1 (LGPL-2.1), unless explicitly stated otherwise.
-    See "SECTION A: GNU LESSER GENERAL PUBLIC LICENSE VERSION 2.1"
-    below; the same text is kept verbatim in the COPYING file.
+    All source files published in this repository (*.h, CMakeLists.txt,
+    script/, cmake_config/, rw350r_config/) are released under the GNU
+    Lesser General Public License, version 2.1 (LGPL-2.1), unless
+    explicitly stated otherwise.  See "SECTION A: GNU LESSER GENERAL
+    PUBLIC LICENSE VERSION 2.1" below; the same text is kept verbatim in
+    the COPYING file.
 
-    Explicit exceptions (see debian/copyright for the full list):
+    This repository no longer publishes the service implementation
+    sources (*.c / *.cc).  The four services are shipped as prebuilt
+    executables instead; see item 2 below.
 
-        application/3rd/iniparser/*                 MIT
-        application/3rd/safestringlib/*             MIT
-        application/3rd/qdl/*                       BSD-3-clause
+    Explicit exceptions among the published files:
+
         application/include/common/rolling_list.h   GPL-2
             (derived from the Linux kernel include/linux/list.h)
 
-2.  PREBUILT BINARIES / LIBRARIES (Proprietary / Custom Redistribution)
+2.  PREBUILT BINARIES (Proprietary / Custom Redistribution)
 
-    The prebuilt files located at
+    The prebuilt executables located at
 
-        binary_deb/common_lib/           the four static archives
-                                           libcode.a
-                                           libmtk_rw350r_dell_2.0.25.a
-                                           librolling_config_service_2.0.11.a
-                                           librolling_flash_service_2.0.19.a
-        application/rolling_ma_service/  rolling_ma, the FCC-unlock helper
+        application/rolling_config_service/  rolling_config,
+                                               the firmware configuration
+                                               service
+        application/rolling_flash_service/   rolling_flash, the firmware
+                                               download/upgrade service
+        application/rolling_helper_service/  rolling_helper, the D-Bus
+                                               helper service
+        application/rolling_ma_service/      rolling_ma, the FCC-unlock
+                                               helper
 
     are distributed under the Custom Binary Redistribution License.
     See "SECTION B: CUSTOM BINARY REDISTRIBUTION LICENSE" below.  Each of
-    those two directories ships its own copy of that license, covering the
-    artefacts it contains:
+    those four directories ships its own copy of that license -- with the
+    file size and SHA-256 digest of the artefact it covers -- so that the
+    artefacts keep their terms when they are redistributed on their own:
 
-        binary_deb/common_lib/LICENSE
+        application/rolling_config_service/LICENSE
+        application/rolling_flash_service/LICENSE
+        application/rolling_helper_service/LICENSE
         application/rolling_ma_service/LICENSE
 
-    This repository publishes the service entry points (rolling_config_main.c,
-    rolling_flash_main.c, rolling_helper_main.c), the headers and the
-    D-Bus / systemd / udev integration, but the remaining translation units
-    compiled into these artefacts are not published here.  The artefacts
-    therefore cannot be rebuilt from this repository and are covered by the
-    copyright holder's binary redistribution grant in Section B instead of
-    by LGPL-2.1.
+    This repository publishes the headers, the runtime configuration data
+    (rwwwanConfig.ini, FwUpdate.ini), the D-Bus / systemd / udev
+    integration and the packaging scripts, but the translation units
+    compiled into these executables are not published here.  The
+    executables therefore cannot be rebuilt from this repository and are
+    covered by the copyright holder's binary redistribution grant in
+    Section B instead of by LGPL-2.1.
 
 ========================================================================
 SECTION A: GNU LESSER GENERAL PUBLIC LICENSE, VERSION 2.1
@@ -565,21 +572,21 @@ Copyright (c) 2025-2026 Rolling Wireless S.a.r.l.  All rights reserved.
 This license applies to the prebuilt files shipped in this repository
 (the "Prebuilt Binaries"):
 
-    binary_deb/common_lib/libcode.a
-    binary_deb/common_lib/libmtk_rw350r_dell_2.0.25.a
-    binary_deb/common_lib/librolling_config_service_2.0.11.a
-    binary_deb/common_lib/librolling_flash_service_2.0.19.a
-
+    application/rolling_config_service/rolling_config
+    application/rolling_flash_service/rolling_flash
+    application/rolling_helper_service/rolling_helper
     application/rolling_ma_service/rolling_ma
 
 The Prebuilt Binaries are compiled from internal sources that are not
-published in this repository, so that they ship in object/executable form
-only.  Each directory carries a self-contained copy of this license -- with
-the file sizes and SHA-256 digests of the artefacts it covers -- so that the
+published in this repository, so that they ship in executable form only.
+Each directory carries a self-contained copy of this license -- with the
+file size and SHA-256 digest of the artefact it covers -- so that the
 artefacts keep their terms when they are redistributed on their own:
 
-    binary_deb/common_lib/LICENSE            (the four static archives)
-    application/rolling_ma_service/LICENSE   (rolling_ma)
+    application/rolling_config_service/LICENSE   (rolling_config)
+    application/rolling_flash_service/LICENSE    (rolling_flash)
+    application/rolling_helper_service/LICENSE   (rolling_helper)
+    application/rolling_ma_service/LICENSE       (rolling_ma)
 
 Redistribution and use of the Prebuilt Binaries in binary form are
 permitted, provided that the following conditions are met:
@@ -591,7 +598,9 @@ permitted, provided that the following conditions are met:
 2.  The Prebuilt Binaries may be redistributed only in unmodified form.  A
     copy of this license must accompany every redistribution: either the
     copy shipped next to the artefacts, or a document that reproduces it
-    in full (for example debian/copyright of the Debian package).
+    in full (for example /usr/share/doc/linux-apps/copyright in the
+    Debian package, which the package build generates from the four
+    per-directory LICENSE copies).
 
 3.  Neither the name of the copyright holder nor the names of its
     contributors may be used to endorse or promote products derived from
@@ -600,15 +609,34 @@ permitted, provided that the following conditions are met:
 4.  All rights not expressly granted above are reserved by the copyright
     holder, including the right to modify the Prebuilt Binaries and to
     redistribute them in source form.  Requests for source access or for
-    additional rights should be directed to the maintainer address given
-    in debian/copyright.
+    additional rights should be addressed to:
 
-5.  The rolling_ma executable incorporates code derived from dmidecode,
-    which is licensed under the GNU General Public License, version 2, by
-    its original authors.  Nothing in this license restricts any rights
-    granted by that license with respect to the dmidecode-derived code,
-    and the corresponding source code will be made available on written
-    request, as required by the GNU GPL version 2, section 3.
+        Qifeng Liu <qifeng.liu@rollingwireless.com>
+
+5.  Third-party code incorporated in individual Prebuilt Binaries is
+    subject to its own license, which prevails over this license with
+    respect to that code; the corresponding notices are stated in each
+    per-directory LICENSE copy and reproduced in the package copyright
+    file:
+
+    rolling_ma:     incorporates code derived from dmidecode, licensed
+                    under the GNU General Public License, version 2, by
+                    its original authors.  The corresponding source code
+                    will be made available on written request, as required
+                    by the GNU GPL version 2, section 3.
+
+    rolling_config: incorporates code derived from iniparser, licensed
+                    under the MIT License (Copyright (c) 2000-2011 by
+                    Nicolas Devillard).
+
+    rolling_flash:  incorporates code derived from safestringlib,
+                    licensed under the MIT License (Copyright (c)
+                    2014-2018 Intel Corporation; portions Copyright (C)
+                    2012, 2013 Cisco Systems).
+
+    rolling_helper: does not incorporate third-party code in static form;
+                    its dependencies are dynamically linked at run time
+                    and covered by the Debian package Depends.
 
 DISCLAIMER: THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND
 CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,

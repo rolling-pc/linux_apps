@@ -276,6 +276,11 @@ set(deb_soft_dirs "${PROJECT_BINARY_DIR}/release/dpkg")
                         install(DIRECTORY "${deb_soft_dirs}/usr/share/dbus-1/system.d/"
                                 DESTINATION "usr/share/dbus-1/system.d"
                                 USE_SOURCE_PERMISSIONS)
+
+                        # 安装copyright文件 (Debian policy 12.5)
+                        install(DIRECTORY "${deb_soft_dirs}/usr/share/doc/linux-apps/"
+                                DESTINATION "usr/share/doc/linux-apps"
+                                USE_SOURCE_PERMISSIONS)
                         install(CODE "MESSAGE(\"install success!\")")
 
                         set(CPACK_PACKAGE_VENDOR "rolling")

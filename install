@@ -418,6 +418,103 @@ function create_and_install()
     mkdir -p ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
     create_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
 	create_lvfs_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
+    # Debian policy 12.5: every package ships a copyright file.  It
+    # aggregates the four per-service Custom Binary Redistribution
+    # Licenses plus the MIT notices of the statically incorporated
+    # third-party code (iniparser, safestringlib).
+    mkdir -p ${DEB_SOFT_DIRS}/usr/share/doc/linux-apps/
+    create_copyright ${DEB_SOFT_DIRS}/usr/share/doc/linux-apps/
+}
+
+# Aggregate the redistribution terms that must travel with the package
+# (Debian policy 12.5).  The four per-service licenses are reproduced in
+# full, as required by section 2 of the Custom Binary Redistribution
+# License, followed by the MIT notices of the statically incorporated
+# third-party code.
+function create_copyright()
+{
+    local out="$1/copyright"
+
+    {
+        echo "rolling linux apps -- package copyright and licenses"
+        echo "===================================================="
+        echo ""
+        echo "Upstream: https://github.com/rolling-pc/linux_apps"
+        echo "Contact:  Qifeng Liu <qifeng.liu@rollingwireless.com>"
+        echo ""
+        echo "The four service executables ship in prebuilt binary form and"
+        echo "are covered by the Custom Binary Redistribution License, reproduced"
+        echo "in full below for each service.  The remaining published files of"
+        echo "the source repository (scripts, headers, packaging) are licensed"
+        echo "under the GNU LGPL-2.1; see the repository LICENSE/COPYING files."
+        echo ""
+    } > "$out"
+
+    local svc
+    for svc in rolling_config_service rolling_flash_service \
+               rolling_helper_service rolling_ma_service; do
+        if [ -f "${APP_DIR}/${svc}/LICENSE" ]; then
+            echo "----------------------------------------------------------------" >> "$out"
+            echo "application/${svc}/LICENSE" >> "$out"
+            echo "----------------------------------------------------------------" >> "$out"
+            cat "${APP_DIR}/${svc}/LICENSE" >> "$out"
+            echo "" >> "$out"
+        fi
+    done
+
+    # MIT notices of statically incorporated third-party code.
+    cat >> "$out" <<'EOF'
+----------------------------------------------------------------
+Third-party code statically incorporated in the prebuilt binaries
+----------------------------------------------------------------
+
+iniparser (in rolling_config)
+    Copyright (c) 2000-2011 by Nicolas Devillard.
+    MIT License
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+safestringlib (in rolling_flash)
+    Copyright (c) 2014-2018 Intel Corporation
+    (portions Copyright (C) 2012, 2013 Cisco Systems)
+    MIT License
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+EOF
+
+    chmod 644 "$out"
 }
 
 # Normalise the modes of the staged tree.
