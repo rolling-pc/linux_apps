@@ -4,50 +4,46 @@ This is a Rolling Linux apps set project for WWAN devices.<br>
   **Config service:** OEM configuration function.<br>
   **Helper service:** provides D-Bus API for Flash/Ma/Config service.<br>
   **Ma service:** provides the rolling_ma binary (ModemManager FCC unlock helper).<br>
-  Note: rolling_ma is provided as a prebuilt binary only and supports Ubuntu 26.04 (resolute) only.
+  Note: all four services are shipped as prebuilt binaries only; the service
+  implementation sources are not published in this repository.
 
 # License
 Licensing is described in one place, the top-level LICENSE file:
 
-  1. SOURCE CODE -- all published source code (*.c, *.h, CMakeLists.txt,
-     debian/, script/) is LGPL-2.1 (LICENSE "SECTION A"; same text in
-     COPYING).  Exceptions: application/3rd/iniparser and
-     application/3rd/safestringlib are MIT, application/3rd/qdl is
-     BSD-3-clause, and application/include/common/rolling_list.h is GPL-2
-     (derived from the Linux kernel).<br>
+  1. SOURCE CODE -- this repository no longer publishes the service
+     implementation sources (*.c / *.cc).  The published files (*.h,
+     CMakeLists.txt, script/, cmake_config/, rw350r_config/) are LGPL-2.1
+     (LICENSE "SECTION A"; same text in COPYING).  Exception:
+     application/include/common/rolling_list.h is GPL-2 (derived from the
+     Linux kernel).<br>
 
-  2. PREBUILT BINARIES -- the four .a static archives in
-     binary_deb/common_lib/ and the rolling_ma executable in
-     application/rolling_ma_service/ are compiled from internal sources that
-     are not published in this repository.  They are redistributed under the
-     Custom Binary Redistribution License (LICENSE "SECTION B"): binary
-     redistribution is permitted under the listed conditions; modification
-     and source redistribution are reserved.  Each of those two directories
-     ships its own self-contained copy of that license, with the size and
-     SHA-256 of the artefacts it covers (binary_deb/common_lib/LICENSE,
-     application/rolling_ma_service/LICENSE).  See also debian/copyright
-     ("Rolling-binary-1.0").<br>
+  2. PREBUILT BINARIES -- the four service executables
+     (rolling_config, rolling_flash, rolling_helper, rolling_ma) are
+     compiled from internal sources that are not published in this
+     repository.  Each is redistributed under its own Custom Binary
+     Redistribution License (LICENSE "SECTION B"), shipped in its service
+     directory with the size and SHA-256 of the binary it covers
+     (application/rolling_config_service/LICENSE,
+     application/rolling_flash_service/LICENSE,
+     application/rolling_helper_service/LICENSE,
+     application/rolling_ma_service/LICENSE).  The deb package aggregates
+     all four licenses in /usr/share/doc/linux-apps/copyright, together
+     with the MIT notices of the statically incorporated third-party code
+     (iniparser in rolling_config, safestringlib in rolling_flash).<br>
 
 # Notice
   - Services must be used with fw_package. Before installing services, ensure that fw_package has been installed. Obtain the fw package from the corresponding OEM.<br>
   - fw_switch uses fastboot; you can install fastboot with `sudo apt-get install fastboot`<br>
-  - This application is packaged for Ubuntu 24.04 by default; multi-distro debs (22.04 jammy / 26.04 resolute) are supported via `script/build_multi_distro.sh`. Fedora and other OSes are unverified.
+  - This application is packaged for Ubuntu 24.04 by default; the deb release tag can be set explicitly with `-DDISTRO_TAG=ubuntu26.04` (or ubuntu22.04). Fedora and other OSes are unverified.
 
 # Building on Ubuntu
+
+This is a binary-only tree: no compilation is needed, the four service
+executables ship prebuilt in application/rolling_*_service/.
 
 ## 1. Install
 
 - sudo apt install cmake<br>
-- sudo apt install build-essential<br>
-- sudo apt install -y pkg-config<br>
-- sudo apt install libglib2.0-dev<br>
-- sudo apt install libxml2-dev<br>
-- sudo apt install libudev-dev<br>
-- sudo apt install libmbim-glib-dev<br>
-- sudo apt install libdbus-1-dev<br>
-- sudo apt install libmm-glib-dev<br>
-- sudo apt install libxml2-dev<br>
-- sudo apt install libfwupd-dev<br>
 
 ## 2. Build
 1. cmake -S . -B build -DPROJECT_BUILD=xxx -DOEM_BUILD=yyy<br>
@@ -55,47 +51,15 @@ Licensing is described in one place, the top-level LICENSE file:
     `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw101 -DOEM_BUILD=lenovo -DBUILD_BY_LIB=1` <br>
     Example (rw350r lenovo):<br>
     `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350r -DOEM_BUILD=lenovo -DBUILD_BY_LIB=1` <br>
-    Example (rw350r dell):<br>
-    `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350r -DOEM_BUILD=dell -DBUILD_BY_LIB=1` <br>
-    Or use script (opensrc always uses prebuilt `binary_deb/common_lib`, equivalent to `-DBUILD_BY_LIB=1`):<br>
-    `./script/make_deb.sh deb rw350r lenovo`<br>
-    `./script/make_deb.sh rpm rw350r lenovo`<br>
-    `./script/make_deb.sh deb rw350r dell`<br>
-    `./script/make_deb.sh rpm rw350r dell`<br>
-    Or build the deb directly with dpkg (uses debian/ packaging, debhelper 13):<br>
-    `dpkg-buildpackage -us -uc -b`<br>
-    Note: the binary package name follows the (project, OEM) pair selected in debian/rules (e.g. linux-apps-mtk-rw350r-dell).<br>
-
-### 2.1 Multi-distro deb (Docker, by-lib)
-
-This repo only has prebuilt static libs. Build libs in **opensrc** Docker first, then package here.
-
-```bash
-# opensrc: build 26.04 libs (+ rolling_ma)
-cd /path/to/dev_linux_app/.../linux-apps
-./script/build_multi_distro.sh lib rw350r dell resolute
-
-# copy the archives (and their license) into the upstream tree
-cp -a binary_deb/common_lib-ubuntu26.04/*.a \
-  /path/to/upstream_github/linux_apps/binary_deb/common_lib-ubuntu26.04/
-
-# rolling_ma lives in application/rolling_ma_service/ and is licensed there;
-# only copy it if the opensrc build produced a different binary
-cp -a binary_deb/common_lib-ubuntu26.04/rolling_ma \
-  /path/to/upstream_github/linux_apps/application/rolling_ma_service/
-
-# upstream: package 26.04 deb inside Docker (always by-lib)
-cd /path/to/upstream_github/linux_apps
-./script/build_multi_distro.sh deb rw350r dell resolute
-# skip smoke: add --no-smoke
-```
-
-`rolling_ma` is looked up, in order, at the CMake build output, then
-`binary_deb/common_lib-<distro>/rolling_ma` (only if a distro-specific variant
-is needed), then `application/rolling_ma_service/rolling_ma`, then the generic
-prebuilt `binary_deb/common_lib/rolling_ma`.
-
-Library Ubuntu version must match the deb target (22.04 libs for jammy, 26.04 for resolute). Do not link 26.04 libs on a 22.04 host.
+    Example (rw350r dell, Ubuntu 26.04):<br>
+    `cmake -S . -B build -DBUILD_DEB=yes -DPROJECT_BUILD=rw350r -DOEM_BUILD=dell -DBUILD_BY_LIB=1 -DDISTRO_TAG=ubuntu26.04` <br>
+2. cd build<br>
+3. cpack -- produces the deb in build/.<br>
+Or use script (the finished .deb is also moved to binary_deb/):<br>
+`./script/make_deb.sh deb rw350r lenovo`<br>
+`./script/make_deb.sh rpm rw350r lenovo`<br>
+`./script/make_deb.sh deb rw350r dell`<br>
+`./script/make_deb.sh rpm rw350r dell`<br>
 
 ## 3. If using systemd
 - Reload config:<br>
