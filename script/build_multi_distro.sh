@@ -285,9 +285,9 @@ run_smoke_test() {
 
             echo '==> Checking shared library resolution'
             for bin in \
-                /opt/rolling/rolling_flash_service/rolling_flash \
-                /opt/rolling/rolling_config_service/rolling_config \
-                /opt/rolling/rolling_helper_service/rolling_helper; do
+                /usr/bin/rolling_flash \
+                /usr/bin/rolling_config \
+                /usr/bin/rolling_helper; do
                 echo \"--- ldd \${bin}\"
                 ldd \"\${bin}\"
                 if ldd \"\${bin}\" | grep -q 'not found'; then
@@ -296,10 +296,10 @@ run_smoke_test() {
                 fi
             done
 
-            if [ -f /opt/rolling/rolling_ma_service/rolling_ma ]; then
-                echo '--- ldd /opt/rolling/rolling_ma_service/rolling_ma'
-                ldd /opt/rolling/rolling_ma_service/rolling_ma
-                if ldd /opt/rolling/rolling_ma_service/rolling_ma | grep -q 'not found'; then
+            if [ -f /usr/bin/rolling_ma ]; then
+                echo '--- ldd /usr/bin/rolling_ma'
+                ldd /usr/bin/rolling_ma
+                if ldd /usr/bin/rolling_ma | grep -q 'not found'; then
                     echo 'ERROR: missing shared libraries for rolling_ma' >&2
                     exit 1
                 fi

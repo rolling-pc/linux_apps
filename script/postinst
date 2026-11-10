@@ -7,11 +7,23 @@
 # same maintainer scripts.  Edit here, then re-copy to debian/.
 #
 # No #DEBHELPER# token on purpose; see the note in script/preinst.
+#
+# upstream review 2026-11:
+#  - systemd handling uses deb-systemd-helper / deb-systemd-invoke
+#    (Policy 9.3.x) instead of raw systemctl; deb-systemd-invoke also
+#    performs the daemon-reload for us.
+#  - fcc-unlock helpers and the fwupd quirk ship as dpkg-owned real files
+#    under /usr/share/rolling; only symlinks are created in the consuming
+#    directories (ModemManager / fwupd), never copied content.
 
 set -e
 
 SERVICE_UNITS="rolling_helper rolling_config rolling_flash"
 FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
+# dpkg-owned real files shipped by the package (staged by the "install"
+# helper, see create_fcc_unlock / create_fwupd_quirk).
+FCC_SRC_DIR="/usr/share/rolling/rolling_ma_service/fcc-unlock.d"
+QUIRK_SRC="/usr/share/rolling/fwupd/quirks.d/rolling-linux-apps.quirk"
 FWUPD_QUIRK_DIR="/usr/share/fwupd/quirks.d"
 FWUPD_QUIRK_FILE="${FWUPD_QUIRK_DIR}/rolling-linux-apps.quirk"
 
@@ -27,15 +39,11 @@ case "$1" in
         ;;
 esac
 
-have_systemctl() {
-    command -v systemctl >/dev/null 2>&1
-}
-
 # The executables are shipped 0755; re-assert it in case an operator or an
 # archive extraction dropped the bit.
 fix_modes() {
-    for f in /opt/rolling/rolling_ma_service/rolling_ma \
-             /opt/rolling/rolling_ma_service/libmodemauth.so.1.1; do
+    for f in /usr/bin/rolling_ma \
+             /usr/lib/rolling/libmodemauth.so.1.1; do
         if [ -f "$f" ]; then
             chmod 0755 "$f"
         fi
@@ -43,34 +51,33 @@ fix_modes() {
     return 0
 }
 
-# ModemManager loads FCC unlock plugins from its own directory.  The scripts
-# live under /opt (they are part of this package's payload), so they are copied
-# into place here.  Only our own file names are written; nothing that belongs to
-# another package is modified or removed.
+# ModemManager loads FCC unlock plugins from its own directory.  The real
+# scripts live under /usr/share/rolling (dpkg-managed); here we only create
+# symlinks named after our modem IDs inside ModemManager's plugin directory.
+# The symlink targets the /usr/share path so an upgrade of this
+# package updates the behaviour without re-linking, and nothing owned by
+# another package is copied or modified.
 install_fcc_unlock() {
-    src=/opt/rolling/rolling_ma_service/fcc-unlock.d
-    [ -d "$src" ] || return 0
+    [ -d "$FCC_SRC_DIR" ] || return 0
 
     for mm in /usr/lib/*/ModemManager /usr/lib/ModemManager /usr/lib64/ModemManager; do
         [ -d "$mm" ] || continue
         dest="${mm}/fcc-unlock.d"
         mkdir -p "$dest"
         for id in $FCC_IDS; do
-            if [ -f "${src}/${id}" ]; then
-                cp -f "${src}/${id}" "${dest}/${id}"
-                chmod 0755 "${dest}/${id}"
+            if [ -e "${FCC_SRC_DIR}/${id}" ]; then
+                ln -sfn "${FCC_SRC_DIR}/${id}" "${dest}/${id}"
             fi
         done
     done
     return 0
 }
 
-# Seed /etc/opt/rolling/config_file from the defaults shipped under /opt.
-#
-# The originals are COPIED, not moved: the .ini files belong to this package and
-# must stay where dpkg put them, otherwise "dpkg -V" reports missing files and
-# every upgrade re-extracts them.  An existing file in /etc is never overwritten,
-# so local edits survive upgrades.
+# Seed /etc/rolling/config_file from the defaults shipped under
+# /usr/share/rolling (dpkg-owned).  The destination is kept in sync with the
+# runtime paths compiled into the binaries.
+# An existing file in /etc is never overwritten, so local edits survive
+# upgrades.
 seed_config() {
     src="$1"
     dest="$2"
@@ -86,81 +93,99 @@ seed_config() {
     return 0
 }
 
-# Enable and start the services.  debhelper's systemd snippets are deliberately
-# disabled (see debian/rules), so this is the only place that does it, for both
-# build paths alike.
-start_services() {
-    have_systemctl || return 0
-    units=""
-    for unit in $SERVICE_UNITS; do
-        for dir in /lib/systemd/system /usr/lib/systemd/system; do
-            if [ -f "${dir}/${unit}.service" ]; then
-                units="$units ${unit}.service"
-                break
-            fi
-        done
+# One-time migration from the legacy /etc/opt/rolling layout (binaries
+# compiled before the /etc + /var/lib move): carry over operator-edited ini
+# files so an upgrade does not lose local configuration.  The legacy tree is
+# left in place; postrm purge removes it.
+migrate_legacy_config() {
+    svc="$1"
+    legacy="/etc/opt/rolling/config_file/${svc}"
+    dest="/etc/rolling/config_file/${svc}"
+    [ -d "$legacy" ] || return 0
+    mkdir -p "$dest"
+    for ini in "$legacy"/*.ini; do
+        [ -f "$ini" ] || continue
+        base=${ini##*/}
+        if [ ! -e "${dest}/${base}" ]; then
+            cp -p "$ini" "${dest}/${base}"
+        fi
     done
-    [ -n "$units" ] || return 0
-
-    systemctl daemon-reload 2>/dev/null || true
-    systemctl enable $units 2>/dev/null || true
-    systemctl start $units 2>/dev/null || true
     return 0
 }
 
-# fwupd needs the RW101 fastboot quirks to talk to the modem.  Older revisions
-# of this package decompressed, appended to and recompressed
-# /usr/share/fwupd/quirks.d/builtin.quirk.gz, i.e. rewrote a file owned by the
-# fwupd package, and lost the change on every fwupd upgrade.  fwupd reads every
-# *.quirk file in that directory, so a drop-in file of our own is both cleaner
-# and durable.
+# fwupd reads every *.quirk file in its quirks.d directory.  The real quirk
+# file is shipped by this package under /usr/share/rolling; only the symlink
+# in fwupd's (foreign) directory is created here.
 install_fwupd_quirk() {
+    [ -f "$QUIRK_SRC" ] || return 0
     [ -d "$FWUPD_QUIRK_DIR" ] || return 0
 
-    cat > "$FWUPD_QUIRK_FILE" <<'ROLLING_QUIRK_EOF'
-# Installed by linux-apps (postinst).  Removed on purge.
-# Rolling Wireless WWAN modules handled by the ModemManager fastboot plugin.
+    ln -sfn "$QUIRK_SRC" "$FWUPD_QUIRK_FILE"
 
-[USB\VID_33F8&PID_D00D]
-Plugin = fastboot
-FastbootBlockSize = 16384
-FastbootOperationDelay = 0
-Summary = Rolling RW101 Modem (fastboot)
-CounterpartGuid = USB\VID_33F8&PID_0301
-CounterpartGuid = USB\VID_33F8&PID_0302
+    if [ -d /run/systemd/system ]; then
+        deb-systemd-invoke try-restart fwupd.service 2>/dev/null || true
+    fi
+    return 0
+}
 
-[USB\VID_33F8&PID_0302]
-GType = FuMmFastbootDevice
-Summary = Rollingwireless RW101-GL Module
-Flags = uninhibit-modemmanager-after-fastboot-reboot,detach-at-fastboot-has-no-response
-CounterpartGuid = USB\VID_33F8&PID_D00D
+unit_file_present() {
+    for dir in /lib/systemd/system /usr/lib/systemd/system; do
+        if [ -f "${dir}/$1" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
 
-[USB\VID_33F8&PID_0301]
-GType = FuMmFastbootDevice
-Summary = Rollingwireless RW101-GL Module
-Flags = uninhibit-modemmanager-after-fastboot-reboot,detach-at-fastboot-has-no-response
-CounterpartGuid = USB\VID_33F8&PID_D00D
-ROLLING_QUIRK_EOF
+# Enable and start the services with the debhelper-recommended tools
+# (Policy 9.3.x, lintian maintainer-script-calls-systemctl).  deb-systemd-helper
+# works without a running systemd (it maintains its own state files), so
+# enable is unconditional; deb-systemd-invoke additionally handles
+# daemon-reload and honours policy-rc.d, and is only called when systemd is
+# actually running (chroot / container installs).
+enable_services() {
+    for unit in $SERVICE_UNITS; do
+        if unit_file_present "${unit}.service"; then
+            deb-systemd-helper unmask "${unit}.service" >/dev/null 2>&1 || true
+            deb-systemd-helper enable "${unit}.service" >/dev/null 2>&1 || true
+        fi
+    done
+    return 0
+}
 
-    chmod 0644 "$FWUPD_QUIRK_FILE"
+start_services() {
+    [ -d /run/systemd/system ] || return 0
+    units=""
+    for unit in $SERVICE_UNITS; do
+        if unit_file_present "${unit}.service"; then
+            units="$units ${unit}.service"
+        fi
+    done
+    [ -n "$units" ] || return 0
 
-    if have_systemctl; then
-        systemctl try-restart fwupd.service 2>/dev/null || true
+    if [ -n "$2" ]; then
+        # upgrade: only restart if the units are already running
+        deb-systemd-invoke try-restart $units 2>/dev/null || true
+    else
+        deb-systemd-invoke start $units 2>/dev/null || true
     fi
     return 0
 }
 
 fix_modes
 install_fcc_unlock
-seed_config /opt/rolling/rolling_config_service /etc/opt/rolling/config_file/rolling_config_service
-seed_config /opt/rolling/rolling_flash_service /etc/opt/rolling/config_file/rolling_flash_service
+migrate_legacy_config rolling_config_service
+migrate_legacy_config rolling_flash_service
+seed_config /usr/share/rolling/rolling_config_service /etc/rolling/config_file/rolling_config_service
+seed_config /usr/share/rolling/rolling_flash_service /etc/rolling/config_file/rolling_flash_service
 
-# Runtime state.  These paths are compiled into rolling_flash
-# (rolling_flash_common.h), so they must match exactly.
-install -d -m 0755 /etc/opt/rolling/run
-install -d -m 0755 /etc/opt/rolling/rolling_fw_pkg
+# Runtime state.  These paths are compiled into the binaries, so they must
+# match exactly (persistent service state lives under /var/lib).
+install -d -m 0755 /var/lib/rolling/run
+install -d -m 0755 /var/lib/rolling/rolling_fw_pkg
 
 install_fwupd_quirk
+enable_services
 start_services
 
 exit 0

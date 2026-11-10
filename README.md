@@ -79,17 +79,24 @@ Or use script (the finished .deb is also moved to binary_deb/):<br>
 - Stop service:<br>
   sudo systemctl stop rolling_xxx.service<br>
 
-## 4. Items not copied when installing (deb package)
+## 4. Installed system files (deb package)
 
-When you install the deb package (built via the `install` script or debian packaging), files are copied to the system directories. The following items are **not** copied:
+When you install the deb package (built via the `install` script or debian packaging), files are copied to the system directories:
 
-- **udev rules (usr/lib/udev/):** They are not copied because ModemManager already includes the content of these rules; no need to install them again.
-- **env.conf (lib/systemd/system/rolling_*.d/env.conf):** These files only set environment variable paths (e.g. LD_LIBRARY_PATH). The current build does not use libraries from that path, so they are not needed.
+- **Binaries:** `/usr/bin/` (rolling_config, rolling_flash, rolling_helper, rolling_ma)
+- **Runtime data (ini defaults, fcc-unlock scripts, fwupd quirk):** `/usr/share/rolling/`
+- **udev rules (usr/lib/udev/rules.d/):** installed by the CMake build; ModemManager/fwupd read them from there.
+- **env.conf (usr/lib/systemd/system/rolling_*.d/env.conf):** installed by the CMake build; systemd reads these EnvironmentFile drop-ins at service start.
+- **systemd units:** `/usr/lib/systemd/system/rolling_*.service`
+- **D-Bus policy:** `/usr/share/dbus-1/system.d/com.rolling.helper.conf`
+
+Note: the effective ini config is seeded by the postinst into `/etc/rolling/config_file/`, and the runtime state directories `/var/lib/rolling/run` and `/var/lib/rolling/rolling_fw_pkg` are created by the postinst (their paths are compiled into the binaries).
 
 ## 5. fccunlock
 - location path:<br>
-  rolling_ma : /opt/rolling/rolling_ma_service/.
-  14c3:4d75 : /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d
+  rolling_ma : /usr/bin/rolling_ma<br>
+  shipped scripts : /usr/share/rolling/rolling_ma_service/fcc-unlock.d<br>
+  14c3:4d75 : /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d (symlink to the shipped script)
 - working:<br>
   rolling_ma while be call by Modemmanager, when Modemmanager detect the modem is locked.
 

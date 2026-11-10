@@ -6,9 +6,15 @@
 # of this file.  Edit here, then re-copy to debian/.
 #
 # No #DEBHELPER# token on purpose; see the note in script/preinst.
+#
+# upstream review 2026-11: enablement state is cleaned up with
+# deb-systemd-helper (Policy 9.3.x) instead of raw systemctl; the fwupd quirk
+# entry is now a symlink whose target is a dpkg-owned file under
+# /usr/share/rolling.
 
 set -e
 
+SERVICE_UNITS="rolling_helper rolling_config rolling_flash"
 FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
 MM_DROPIN="/etc/systemd/system/ModemManager.service.d/50-rolling-linux-apps.conf"
 FWUPD_QUIRK_FILE="/usr/share/fwupd/quirks.d/rolling-linux-apps.quirk"
@@ -25,14 +31,12 @@ case "$1" in
         ;;
 esac
 
-have_systemctl() {
-    command -v systemctl >/dev/null 2>&1
-}
-
 # Remove the files this package created outside its own payload: the FCC unlock
-# helpers copied into ModemManager's plugin directory, the fwupd quirk drop-in
-# and the ModemManager systemd drop-in.  Only our own file names are touched;
+# symlinks in ModemManager's plugin directory, the fwupd quirk symlink and the
+# ModemManager systemd drop-in.  Only our own file names are touched;
 # directories and files belonging to other packages are left alone.
+# (rm -f removes both the old plain copies and the current symlinks, so this
+# also cleans up upgrades from pre-FHS revisions of the package.)
 remove_runtime_files() {
     for mm in /usr/lib/*/ModemManager /usr/lib/ModemManager /usr/lib64/ModemManager; do
         [ -d "$mm" ] || continue
@@ -50,17 +54,25 @@ remove_runtime_files() {
 remove_runtime_files
 
 # Configuration and runtime state are only removed on purge (Policy 6.5,
-# 10.7.3).  A plain remove leaves /etc/opt/rolling untouched so a later
-# reinstall keeps the operator's settings.
+# 10.7.3).  A plain remove leaves /etc/rolling and /var/lib/rolling untouched
+# so a later reinstall keeps the operator's settings.  deb-systemd-helper
+# purge clears the enablement state without needing a running systemd.
+#
+# Legacy trees from pre-FHS revisions of this package are removed on purge:
+#  - /etc/opt/rolling: ini config read by the old /opt-based binaries.
+#  - /opt/rolling: the old binaries themselves.  They become unowned the
+#    moment the new (/usr-based) package replaces the old one, so dpkg can
+#    no longer remove them; leaving them behind makes systemd re-execute a
+#    stale binary if a stale unit definition survives in the manager
+#    (observed: rolling_flash SEGV loop from /opt after purge+reinstall).
 if [ "$1" = "purge" ]; then
-    rm -rf /etc/opt/rolling/config_file
-    rm -rf /etc/opt/rolling/run
-    rm -rf /etc/opt/rolling/rolling_fw_pkg
-    rmdir /etc/opt/rolling 2>/dev/null || true
-fi
-
-if have_systemctl; then
-    systemctl daemon-reload 2>/dev/null || true
+    for unit in $SERVICE_UNITS; do
+        deb-systemd-helper purge "${unit}.service" 2>/dev/null || true
+    done
+    rm -rf /etc/rolling
+    rm -rf /var/lib/rolling
+    rm -rf /etc/opt/rolling
+    rm -rf /opt/rolling
 fi
 
 exit 0

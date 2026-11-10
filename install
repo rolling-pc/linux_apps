@@ -54,14 +54,17 @@ function resolve_rolling_ma_source()
 }
 
 
+# FHS 3.13 / Debian Policy 9.1.1 (upstream review 2026-11): Debian packages
+# must not install under /opt.  Binaries go to /usr/bin, architecture-independent
+# runtime data (ini defaults, fcc-unlock helpers) to /usr/share/rolling, and the
+# lenovo-only shared library to /usr/lib/rolling.
 DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
-DEB_SOFT_DIR="${DEB_SOFT_DIRS}/opt/rolling"
-DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_config_service"
-DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
-
-
-DEB_HELPER_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_helper_service"
-DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
+DEB_BIN_DIR="${DEB_SOFT_DIRS}/usr/bin"
+DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/rolling"
+DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
+DEB_CONFIG_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_config_service"
+DEB_FLASH_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_flash_service"
+DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
 
 OEMUSBID_LIST=( 14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215 )
 
@@ -105,52 +108,47 @@ function copy_file_to_deb_directory()
     if [ "$(ls -A $DEB_FLASH_SERVICE_DIR)" ]; then
         rm -r ${DEB_FLASH_SERVICE_DIR}/*
     fi
+    mkdir -p ${DEB_BIN_DIR}
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        # 使用cp -f命令，不存在时不会报错
-        cp -fraf ${CONFIG_SERVICE_APP_PATH} ${DEB_CONFIG_SERVICE_DIR} 2>/dev/null || true
+        # binary -> /usr/bin, ini defaults -> /usr/share/rolling/<service>/
+        cp -fraf ${CONFIG_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
         # runtime config data, selected per OEM from config_set/<project>_<oem>/
         cp -f ${CONFIG_SERVICE_APP_DIR}/config_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_CONFIG_SERVICE_DIR}/ 2>/dev/null || true
     fi
 
     if [ "yes" == "${BUILD_FLASH}" ]; then
-        DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
-        # 使用cp -f命令，不存在时不会报错
-        cp -fraf ${FLASH_SERVICE_APP_PATH} ${DEB_FLASH_SERVICE_DIR} 2>/dev/null || true
+        DEB_FLASH_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_flash_service"
+        # binary -> /usr/bin, ini defaults -> /usr/share/rolling/<service>/
+        cp -fraf ${FLASH_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
         # runtime config data, selected per OEM from flash_set/<project>_<oem>/
         cp -f ${FLASH_SERVICE_APP_DIR}/flash_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_FLASH_SERVICE_DIR}/ 2>/dev/null || true
     fi
 
     if [ "yes" == "${BUILD_HELPER}" ]; then
-        if [ "$(ls -A $DEB_HELPER_SERVICE_DIR)" ]; then
-            path=`pwd`
-            cd $DEB_HELPER_SERVICE_DIR
-            ls | grep -v  rolling_helper_tools  | awk  '{system("rm -rf "$1)}'
-            cd $path
-        fi
-        # 使用cp -f命令，不存在时不会报错
-        cp -fraf ${HELPER_SERVICE_APP_PATH}/*rolling_helper ${DEB_HELPER_SERVICE_DIR} 2>/dev/null || true
+        # single prebuilt binary -> /usr/bin/rolling_helper
+        cp -fraf ${HELPER_SERVICE_APP_PATH}/*rolling_helper ${DEB_BIN_DIR} 2>/dev/null || true
         # 确保实际二进制文件被重命名为rolling_helper
-        for bin_file in ${DEB_HELPER_SERVICE_DIR}/*rolling_helper; do
-            if [ -f "$bin_file" ] && [ "$bin_file" != "${DEB_HELPER_SERVICE_DIR}/rolling_helper" ]; then
-                mv "$bin_file" "${DEB_HELPER_SERVICE_DIR}/rolling_helper"
+        for bin_file in ${DEB_BIN_DIR}/*rolling_helper; do
+            if [ -f "$bin_file" ] && [ "$bin_file" != "${DEB_BIN_DIR}/rolling_helper" ]; then
+                mv "$bin_file" "${DEB_BIN_DIR}/rolling_helper"
                 break
             fi
         done
     fi
 
     if [ "yes" == "${BUILD_MA}" ]; then
-        mkdir -p ${DEB_MA_SERVICE_DIR}
+        mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
         if [ "lenovo" == "${OEM_BUILD}" ]; then
-            cp -f ${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1 ${DEB_MA_SERVICE_DIR}/
-            chmod 755 ${DEB_MA_SERVICE_DIR}/libmodemauth.so.1.1
+            mkdir -p ${DEB_LIB_ROLLING_DIR}
+            cp -f ${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1 ${DEB_LIB_ROLLING_DIR}/
+            chmod 755 ${DEB_LIB_ROLLING_DIR}/libmodemauth.so.1.1
         else
             rolling_ma_src=$(resolve_rolling_ma_source)
-            cp -f "${rolling_ma_src}" ${DEB_MA_SERVICE_DIR}/rolling_ma
-            chmod 755 ${DEB_MA_SERVICE_DIR}/rolling_ma
+            cp -f "${rolling_ma_src}" ${DEB_BIN_DIR}/rolling_ma
+            chmod 755 ${DEB_BIN_DIR}/rolling_ma
             echo "packaged rolling_ma from ${rolling_ma_src}"
         fi
-        mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
         create_fcc_unlock ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
 }
@@ -182,9 +180,9 @@ Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 
 [Service]
-WorkingDirectory=/opt/rolling/rolling_config_service
+WorkingDirectory=/usr/share/rolling/rolling_config_service
 EnvironmentFile=/usr/lib/systemd/system/rolling_config.d/env.conf
-ExecStart=/opt/rolling/rolling_config_service/rolling_config
+ExecStart=/usr/bin/rolling_config
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
 Type=simple
@@ -217,16 +215,16 @@ Description=Firmware Flash Service
 Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 [Service]
-WorkingDirectory=/opt/rolling/rolling_flash_service
+WorkingDirectory=/usr/share/rolling/rolling_flash_service
 EnvironmentFile=/usr/lib/systemd/system/rolling_flash.d/env.conf
-ExecStart=/opt/rolling/rolling_flash_service/rolling_flash
+ExecStart=/usr/bin/rolling_flash
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
 Type=simple
 User=root
 
 # Same safe hardening subset as rolling_config.service; firmware payloads are
-# consumed from /etc/opt/rolling/rolling_fw_pkg, never /tmp or /sys.
+# consumed from /var/lib/rolling/rolling_fw_pkg, never /tmp or /sys.
 ProtectHome=yes
 PrivateTmp=yes
 ProtectClock=yes
@@ -253,7 +251,7 @@ After=ModemManager.service
 
 [Service]
 EnvironmentFile=/usr/lib/systemd/system/rolling_helper.d/env.conf
-ExecStart=/opt/rolling/rolling_helper_service/rolling_helper
+ExecStart=/usr/bin/rolling_helper
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
 Type=simple
@@ -360,10 +358,10 @@ function create_fcc_unlock()
 {
     for s in ${OEMUSBID_LIST[@]}
     do
-        # 确定要执行的二进制文件路径
-        local binary_path="/opt/rolling/rolling_ma_service/rolling_ma"
+        # 确定要执行的二进制路径 (FHS: no /opt, upstream review 2026-11)
+        local binary_path="/usr/bin/rolling_ma"
         if [ "lenovo" == "${OEM_BUILD}" ]; then
-            binary_path="/opt/rolling/rolling_ma_service/libmodemauth.so.1.1"
+            binary_path="/usr/lib/rolling/libmodemauth.so.1.1"
         fi
 
         # 创建fcc-unlock脚本
@@ -388,133 +386,86 @@ EOF
 function create_and_install()
 {
     mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
+    mkdir -p ${DEB_BIN_DIR}
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
         create_config_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
         mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
         create_config_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
-        mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_config_service/
+        mkdir -p ${DEB_SHARE_DIR}/rolling_config_service/
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
         create_flash_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
         mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
         create_flash_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
-        mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_flash_service/
+        mkdir -p ${DEB_SHARE_DIR}/rolling_flash_service/
     fi
     if [ "yes" == "${BUILD_HELPER}" ]; then
         create_helper_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
         mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
         create_helper_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
-        mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_helper_service/
     fi
     if [ "yes" == "${BUILD_MA}" ]; then
-        DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
+        DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
         mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
 
-    mkdir -p ${DEB_SOFT_DIRS}/opt/rolling/rolling_fw_pkg
+    # No /opt staging at all (FHS / Policy 9.1.1) and no staged empty
+    # rolling_fw_pkg directory (lintian package-contains-empty-directory):
+    # the runtime directory /var/lib/rolling/rolling_fw_pkg is created by
+    # postinst instead (the path is compiled into rolling_flash).
     mkdir -p ${DEB_SOFT_DIRS}/usr/share/dbus-1/system.d/
     create_helper_conf ${DEB_SOFT_DIRS}/usr/share/dbus-1/system.d/
     mkdir -p ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
     create_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
 	create_lvfs_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
-    # Debian policy 12.5: every package ships a copyright file.  It
-    # aggregates the four per-service Custom Binary Redistribution
-    # Licenses plus the MIT notices of the statically incorporated
-    # third-party code (iniparser, safestringlib).
-    mkdir -p ${DEB_SOFT_DIRS}/usr/share/doc/linux-apps/
-    create_copyright ${DEB_SOFT_DIRS}/usr/share/doc/linux-apps/
+    # fwupd quirk drop-in ships as a dpkg-owned real file under
+    # /usr/share/rolling; postinst only creates a symlink into fwupd's
+    # quirk directory (upstream review 2026-11: no unmanaged copies).
+    mkdir -p ${DEB_SHARE_DIR}/fwupd/quirks.d/
+    create_fwupd_quirk ${DEB_SHARE_DIR}/fwupd/quirks.d/
+    # NOTE: no copyright installation here (Debian policy 12.5 /
+    # upstream review 2026-11).  The copyright must live at
+    # /usr/share/doc/<binary-package-name>/copyright, but the binary package
+    # name is owned by the downstream packaging (rolling-wwan-services), not
+    # by this script.  Packaging (debian/copyright + dh_installdocs) installs
+    # it; installing a generic /usr/share/doc/linux-apps/copyright from here
+    # is a policy violation and collision-prone.
 }
 
-# Aggregate the redistribution terms that must travel with the package
-# (Debian policy 12.5).  The four per-service licenses are reproduced in
-# full, as required by section 2 of the Custom Binary Redistribution
-# License, followed by the MIT notices of the statically incorporated
-# third-party code.
-function create_copyright()
+# fwupd reads every *.quirk file in its quirks.d directory.  The file content
+# used to be generated by postinst directly into /usr/share/fwupd/quirks.d,
+# which is a directory owned by the fwupd package (dpkg-unmanaged content).
+# It is now staged here as a real package file; the postinst only links it.
+function create_fwupd_quirk()
 {
-    local out="$1/copyright"
+    cat > "$1/rolling-linux-apps.quirk" <<'ROLLING_QUIRK_EOF'
+# Rolling Wireless WWAN modules handled by the ModemManager fastboot plugin.
+# Shipped by the rolling-wwan-services package; linked into
+# /usr/share/fwupd/quirks.d by the postinst.  Removed on purge.
 
-    {
-        echo "rolling linux apps -- package copyright and licenses"
-        echo "===================================================="
-        echo ""
-        echo "Upstream: https://github.com/rolling-pc/linux_apps"
-        echo "Contact:  Qifeng Liu <qifeng.liu@rollingwireless.com>"
-        echo ""
-        echo "The four service executables ship in prebuilt binary form and"
-        echo "are covered by the Custom Binary Redistribution License, reproduced"
-        echo "in full below for each service.  The remaining published files of"
-        echo "the source repository (scripts, headers, packaging) are licensed"
-        echo "under the GNU LGPL-2.1; see the repository LICENSE/COPYING files."
-        echo ""
-    } > "$out"
+[USB\VID_33F8&PID_D00D]
+Plugin = fastboot
+FastbootBlockSize = 16384
+FastbootOperationDelay = 0
+Summary = Rolling RW101 Modem (fastboot)
+CounterpartGuid = USB\VID_33F8&PID_0301
+CounterpartGuid = USB\VID_33F8&PID_0302
 
-    local svc
-    for svc in rolling_config_service rolling_flash_service \
-               rolling_helper_service rolling_ma_service; do
-        if [ -f "${APP_DIR}/${svc}/LICENSE" ]; then
-            echo "----------------------------------------------------------------" >> "$out"
-            echo "application/${svc}/LICENSE" >> "$out"
-            echo "----------------------------------------------------------------" >> "$out"
-            cat "${APP_DIR}/${svc}/LICENSE" >> "$out"
-            echo "" >> "$out"
-        fi
-    done
+[USB\VID_33F8&PID_0302]
+GType = FuMmFastbootDevice
+Summary = Rollingwireless RW101-GL Module
+Flags = uninhibit-modemmanager-after-fastboot-reboot,detach-at-fastboot-has-no-response
+CounterpartGuid = USB\VID_33F8&PID_D00D
 
-    # MIT notices of statically incorporated third-party code.
-    cat >> "$out" <<'EOF'
-----------------------------------------------------------------
-Third-party code statically incorporated in the prebuilt binaries
-----------------------------------------------------------------
+[USB\VID_33F8&PID_0301]
+GType = FuMmFastbootDevice
+Summary = Rollingwireless RW101-GL Module
+Flags = uninhibit-modemmanager-after-fastboot-reboot,detach-at-fastboot-has-no-response
+CounterpartGuid = USB\VID_33F8&PID_D00D
+ROLLING_QUIRK_EOF
 
-iniparser (in rolling_config)
-    Copyright (c) 2000-2011 by Nicolas Devillard.
-    MIT License
-
-    Permission is hereby granted, free of charge, to any person obtaining a
-    copy of this software and associated documentation files (the "Software"),
-    to deal in the Software without restriction, including without limitation
-    the rights to use, copy, modify, merge, publish, distribute, sublicense,
-    and/or sell copies of the Software, and to permit persons to whom the
-    Software is furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in
-    all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
-
-safestringlib (in rolling_flash)
-    Copyright (c) 2014-2018 Intel Corporation
-    (portions Copyright (C) 2012, 2013 Cisco Systems)
-    MIT License
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
-EOF
-
-    chmod 644 "$out"
+    chmod 0644 "$1/rolling-linux-apps.quirk"
 }
 
 # Normalise the modes of the staged tree.
@@ -547,20 +498,20 @@ function create_install()
     fi
     
     # 使用固定的安装目录，不包含项目和oem信息
+    # FHS / Policy 9.1.1: no /opt -- see the staging variable block above.
     DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
-    DEB_SOFT_DIR="${DEB_SOFT_DIRS}/opt/rolling"
-    
+    DEB_BIN_DIR="${DEB_SOFT_DIRS}/usr/bin"
+    DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/rolling"
+    DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
+
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_config_service"
+        DEB_CONFIG_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_config_service"
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
-        DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_flash_service"
-    fi
-    if [ "yes" == "${BUILD_HELPER}" ]; then
-        DEB_HELPER_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_helper_service"
+        DEB_FLASH_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_flash_service"
     fi
     if [ "yes" == "${BUILD_MA}" ]; then
-        DEB_MA_SERVICE_DIR="${DEB_SOFT_DIR}/rolling_ma_service"
+        DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
     fi
     
     create_and_install

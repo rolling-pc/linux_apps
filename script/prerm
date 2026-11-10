@@ -6,6 +6,9 @@
 # of this file.  Edit here, then re-copy to debian/.
 #
 # No #DEBHELPER# token on purpose; see the note in script/preinst.
+#
+# upstream review 2026-11: systemd calls use deb-systemd-helper /
+# deb-systemd-invoke (Policy 9.3.x) instead of raw systemctl.
 
 set -e
 
@@ -26,10 +29,6 @@ case "$1" in
         ;;
 esac
 
-have_systemctl() {
-    command -v systemctl >/dev/null 2>&1
-}
-
 service_units_present() {
     found=""
     for unit in $SERVICE_UNITS; do
@@ -43,18 +42,20 @@ service_units_present() {
     printf '%s' "$found"
 }
 
-have_systemctl || exit 0
-
-units=$(service_units_present)
-[ -n "$units" ] || exit 0
-
 # Stop before the binaries disappear.  Never disable on upgrade: the postinst of
 # the new version enables the units again, and disabling here would briefly drop
 # the WantedBy symlinks for no benefit.
-systemctl stop $units 2>/dev/null || true
+# deb-systemd-invoke honours policy-rc.d and handles daemon-reload; it is only
+# called when systemd is actually running (chroot / container installs).
+units=$(service_units_present)
+if [ -d /run/systemd/system ] && [ -n "$units" ]; then
+    deb-systemd-invoke stop $units 2>/dev/null || true
+fi
 
 if [ "$1" = "remove" ]; then
-    systemctl disable $units 2>/dev/null || true
+    # deb-systemd-helper works without a running systemd: it only maintains
+    # its own enablement state and the WantedBy symlinks.
+    [ -n "$units" ] && deb-systemd-helper disable $units 2>/dev/null || true
 fi
 
 exit 0
