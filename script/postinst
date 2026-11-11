@@ -13,8 +13,14 @@
 #    (Policy 9.3.x) instead of raw systemctl; deb-systemd-invoke also
 #    performs the daemon-reload for us.
 #  - fcc-unlock helpers and the fwupd quirk ship as dpkg-owned real files
-#    under /usr/share/rolling; only symlinks are created in the consuming
+#    under /usr/share/linux-apps; only symlinks are created in the consuming
 #    directories (ModemManager / fwupd), never copied content.
+# Canonical review 2026-11:
+#  - the ini configuration files are dpkg conffiles (Policy 10.7); they are
+#    unpacked by dpkg straight into /etc/rolling/config_file and upgraded /
+#    merged / purged by dpkg itself.  This script never seeds or touches
+#    them.  Legacy /etc/opt/rolling migration happens in preinst, before
+#    unpack, so carried-over files get conffile semantics from dpkg.
 
 set -e
 
@@ -22,8 +28,8 @@ SERVICE_UNITS="rolling_helper rolling_config rolling_flash"
 FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
 # dpkg-owned real files shipped by the package (staged by the "install"
 # helper, see create_fcc_unlock / create_fwupd_quirk).
-FCC_SRC_DIR="/usr/share/rolling/rolling_ma_service/fcc-unlock.d"
-QUIRK_SRC="/usr/share/rolling/fwupd/quirks.d/rolling-linux-apps.quirk"
+FCC_SRC_DIR="/usr/share/linux-apps/rolling_ma_service/fcc-unlock.d"
+QUIRK_SRC="/usr/share/linux-apps/fwupd/quirks.d/rolling-linux-apps.quirk"
 FWUPD_QUIRK_DIR="/usr/share/fwupd/quirks.d"
 FWUPD_QUIRK_FILE="${FWUPD_QUIRK_DIR}/rolling-linux-apps.quirk"
 
@@ -52,7 +58,7 @@ fix_modes() {
 }
 
 # ModemManager loads FCC unlock plugins from its own directory.  The real
-# scripts live under /usr/share/rolling (dpkg-managed); here we only create
+# scripts live under /usr/share/linux-apps (dpkg-managed); here we only create
 # symlinks named after our modem IDs inside ModemManager's plugin directory.
 # The symlink targets the /usr/share path so an upgrade of this
 # package updates the behaviour without re-linking, and nothing owned by
@@ -73,48 +79,8 @@ install_fcc_unlock() {
     return 0
 }
 
-# Seed /etc/rolling/config_file from the defaults shipped under
-# /usr/share/rolling (dpkg-owned).  The destination is kept in sync with the
-# runtime paths compiled into the binaries.
-# An existing file in /etc is never overwritten, so local edits survive
-# upgrades.
-seed_config() {
-    src="$1"
-    dest="$2"
-    [ -d "$src" ] || return 0
-    for ini in "$src"/*.ini; do
-        [ -f "$ini" ] || continue
-        base=${ini##*/}
-        mkdir -p "$dest"
-        if [ ! -e "${dest}/${base}" ]; then
-            cp -p "$ini" "${dest}/${base}"
-        fi
-    done
-    return 0
-}
-
-# One-time migration from the legacy /etc/opt/rolling layout (binaries
-# compiled before the /etc + /var/lib move): carry over operator-edited ini
-# files so an upgrade does not lose local configuration.  The legacy tree is
-# left in place; postrm purge removes it.
-migrate_legacy_config() {
-    svc="$1"
-    legacy="/etc/opt/rolling/config_file/${svc}"
-    dest="/etc/rolling/config_file/${svc}"
-    [ -d "$legacy" ] || return 0
-    mkdir -p "$dest"
-    for ini in "$legacy"/*.ini; do
-        [ -f "$ini" ] || continue
-        base=${ini##*/}
-        if [ ! -e "${dest}/${base}" ]; then
-            cp -p "$ini" "${dest}/${base}"
-        fi
-    done
-    return 0
-}
-
 # fwupd reads every *.quirk file in its quirks.d directory.  The real quirk
-# file is shipped by this package under /usr/share/rolling; only the symlink
+# file is shipped by this package under /usr/share/linux-apps; only the symlink
 # in fwupd's (foreign) directory is created here.
 install_fwupd_quirk() {
     [ -f "$QUIRK_SRC" ] || return 0
@@ -174,10 +140,6 @@ start_services() {
 
 fix_modes
 install_fcc_unlock
-migrate_legacy_config rolling_config_service
-migrate_legacy_config rolling_flash_service
-seed_config /usr/share/rolling/rolling_config_service /etc/rolling/config_file/rolling_config_service
-seed_config /usr/share/rolling/rolling_flash_service /etc/rolling/config_file/rolling_flash_service
 
 # Runtime state.  These paths are compiled into the binaries, so they must
 # match exactly (persistent service state lives under /var/lib).

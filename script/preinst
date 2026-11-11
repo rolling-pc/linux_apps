@@ -139,6 +139,34 @@ configure_modemmanager() {
 
 stop_services
 
+# One-time migration from the legacy /etc/opt/rolling layout (binaries
+# compiled before the /etc + /var/lib move, Canonical review 2026-11):
+# carry over operator-edited ini files into the new conffile paths BEFORE
+# dpkg unpacks.  dpkg then sees existing files at conffile paths, treats
+# them as locally modified conffiles and never silently overwrites them --
+# the packaged defaults land as .dpkg-new (Policy 10.7 semantics).  The
+# legacy tree is left in place; postrm purge removes it.
+migrate_legacy_config() {
+    svc="$1"
+    legacy="/etc/opt/rolling/config_file/${svc}"
+    dest="/etc/rolling/config_file/${svc}"
+    [ -d "$legacy" ] || return 0
+    mkdir -p "$dest"
+    for ini in "$legacy"/*.ini; do
+        [ -f "$ini" ] || continue
+        base=${ini##*/}
+        if [ ! -e "${dest}/${base}" ]; then
+            cp -p "$ini" "${dest}/${base}"
+        fi
+    done
+    return 0
+}
+
+if [ "$1" = "install" ] || [ "$1" = "upgrade" ]; then
+    migrate_legacy_config rolling_config_service
+    migrate_legacy_config rolling_flash_service
+fi
+
 # State file of the flash service; recreated on the next start.  The /opt
 # and /etc/opt paths are from earlier revisions of this package and only
 # exist when upgrading from one of them; /var/lib/rolling/run is compiled

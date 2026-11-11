@@ -1,3 +1,16 @@
+Rolling linux apps 2.1.12
+-------------------------------------------
+
+Packaging compliance release (Canonical review 2026-11):
+
+* ini configuration files are now dpkg conffiles (Policy 10.7): they ship
+  directly in /etc/rolling/config_file/, dpkg owns upgrade/merge/purge, and
+  the postinst no longer seeds /etc.
+* runtime data moved from /usr/share/rolling to /usr/share/linux-apps
+  (FHS /usr/share/<package> naming).
+* preinst migrates operator-edited ini files from the legacy
+  /etc/opt/rolling layout before unpack.
+
 Rolling linux apps 1.0.0
 -------------------------------------------
 

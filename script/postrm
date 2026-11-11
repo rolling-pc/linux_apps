@@ -10,7 +10,9 @@
 # upstream review 2026-11: enablement state is cleaned up with
 # deb-systemd-helper (Policy 9.3.x) instead of raw systemctl; the fwupd quirk
 # entry is now a symlink whose target is a dpkg-owned file under
-# /usr/share/rolling.
+# /usr/share/linux-apps.  Canonical review 2026-11: the ini files under
+# /etc/rolling are dpkg conffiles (Policy 10.7), so dpkg removes them itself
+# on purge; the rm -rf below only cleans runtime files and legacy trees.
 
 set -e
 

@@ -55,15 +55,21 @@ function resolve_rolling_ma_source()
 
 
 # FHS 3.13 / Debian Policy 9.1.1 (upstream review 2026-11): Debian packages
-# must not install under /opt.  Binaries go to /usr/bin, architecture-independent
-# runtime data (ini defaults, fcc-unlock helpers) to /usr/share/rolling, and the
-# lenovo-only shared library to /usr/lib/rolling.
+# must not install under /opt.  Binaries go to /usr/bin, the lenovo-only
+# shared library to /usr/lib/rolling, and architecture-independent runtime
+# data (fcc-unlock helpers, fwupd quirk) to /usr/share/<package>/
+# (Canonical review 2026-11: the directory must be the package name, cf.
+# /usr/share/pipewire).
+# The ini configuration files are dpkg conffiles (Policy 10.7, Canonical
+# review 2026-11): they are staged straight into /etc/rolling/config_file
+# and listed in DEBIAN/conffiles, so dpkg owns upgrade/merge handling and
+# the postinst never seeds /etc itself.
 DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
 DEB_BIN_DIR="${DEB_SOFT_DIRS}/usr/bin"
-DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/rolling"
+DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/linux-apps"
 DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
-DEB_CONFIG_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_config_service"
-DEB_FLASH_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_flash_service"
+DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_config_service"
+DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_flash_service"
 DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
 
 OEMUSBID_LIST=( 14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215 )
@@ -111,15 +117,15 @@ function copy_file_to_deb_directory()
     mkdir -p ${DEB_BIN_DIR}
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        # binary -> /usr/bin, ini defaults -> /usr/share/rolling/<service>/
+        # binary -> /usr/bin, ini conffiles -> /etc/rolling/config_file/<service>/
+        # (Policy 10.7: dpkg-owned conffiles, listed in DEBIAN/conffiles)
         cp -fraf ${CONFIG_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
         # runtime config data, selected per OEM from config_set/<project>_<oem>/
         cp -f ${CONFIG_SERVICE_APP_DIR}/config_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_CONFIG_SERVICE_DIR}/ 2>/dev/null || true
     fi
 
     if [ "yes" == "${BUILD_FLASH}" ]; then
-        DEB_FLASH_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_flash_service"
-        # binary -> /usr/bin, ini defaults -> /usr/share/rolling/<service>/
+        # binary -> /usr/bin, ini conffiles -> /etc/rolling/config_file/<service>/
         cp -fraf ${FLASH_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
         # runtime config data, selected per OEM from flash_set/<project>_<oem>/
         cp -f ${FLASH_SERVICE_APP_DIR}/flash_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_FLASH_SERVICE_DIR}/ 2>/dev/null || true
@@ -180,7 +186,6 @@ Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 
 [Service]
-WorkingDirectory=/usr/share/rolling/rolling_config_service
 EnvironmentFile=/usr/lib/systemd/system/rolling_config.d/env.conf
 ExecStart=/usr/bin/rolling_config
 ExecReload=/bin/kill -HUP \$MAINPID
@@ -215,7 +220,6 @@ Description=Firmware Flash Service
 Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 [Service]
-WorkingDirectory=/usr/share/rolling/rolling_flash_service
 EnvironmentFile=/usr/lib/systemd/system/rolling_flash.d/env.conf
 ExecStart=/usr/bin/rolling_flash
 ExecReload=/bin/kill -HUP \$MAINPID
@@ -392,13 +396,13 @@ function create_and_install()
         create_config_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
         mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
         create_config_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
-        mkdir -p ${DEB_SHARE_DIR}/rolling_config_service/
+        mkdir -p ${DEB_CONFIG_SERVICE_DIR}
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
         create_flash_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
         mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
         create_flash_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
-        mkdir -p ${DEB_SHARE_DIR}/rolling_flash_service/
+        mkdir -p ${DEB_FLASH_SERVICE_DIR}
     fi
     if [ "yes" == "${BUILD_HELPER}" ]; then
         create_helper_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
@@ -420,7 +424,7 @@ function create_and_install()
     create_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
 	create_lvfs_rule ${DEB_SOFT_DIRS}/usr/lib/udev/rules.d/
     # fwupd quirk drop-in ships as a dpkg-owned real file under
-    # /usr/share/rolling; postinst only creates a symlink into fwupd's
+    # /usr/share/linux-apps; postinst only creates a symlink into fwupd's
     # quirk directory (upstream review 2026-11: no unmanaged copies).
     mkdir -p ${DEB_SHARE_DIR}/fwupd/quirks.d/
     create_fwupd_quirk ${DEB_SHARE_DIR}/fwupd/quirks.d/
@@ -488,6 +492,27 @@ function normalize_permissions()
     find "${DEB_SOFT_DIRS}" -type f ! -perm -u+x -exec chmod 0644 {} + 2>/dev/null || true
 }
 
+# Generate DEBIAN/conffiles (Policy 10.7, Canonical review 2026-11).
+#
+# The ini files staged under etc/rolling/config_file are dpkg conffiles: the
+# entries are the packaged (absolute) paths, and the file itself is added to
+# CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA in CMakeLists.txt so it lands in the
+# DEBIAN/ control tarball.  dpkg then owns the whole conffile lifecycle:
+# upgrade prompts/merge, dpkg -V verification, purge cleanup.  The list must
+# stay in sync with what copy_file_to_deb_directory stages.
+function write_conffiles()
+{
+    mkdir -p "${DEB_SOFT_DIRS}/DEBIAN"
+    local conffiles="${DEB_SOFT_DIRS}/DEBIAN/conffiles"
+    : > "${conffiles}"
+    local ini
+    for ini in ${DEB_CONFIG_SERVICE_DIR}/*.ini ${DEB_FLASH_SERVICE_DIR}/*.ini; do
+        if [ -f "$ini" ]; then
+            printf '%s\n' "${ini#${DEB_SOFT_DIRS}}" >> "${conffiles}"
+        fi
+    done
+}
+
 function create_install()
 {
     # create release dir and create config files
@@ -501,21 +526,22 @@ function create_install()
     # FHS / Policy 9.1.1: no /opt -- see the staging variable block above.
     DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
     DEB_BIN_DIR="${DEB_SOFT_DIRS}/usr/bin"
-    DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/rolling"
+    DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/linux-apps"
     DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        DEB_CONFIG_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_config_service"
+        DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_config_service"
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
-        DEB_FLASH_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_flash_service"
+        DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_flash_service"
     fi
     if [ "yes" == "${BUILD_MA}" ]; then
         DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
     fi
-    
+
     create_and_install
     copy_file_to_deb_directory
+    write_conffiles
     normalize_permissions
     
     # 使用固定的包名，不包含项目和oem信息
