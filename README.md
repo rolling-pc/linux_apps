@@ -35,10 +35,7 @@ Licensing is described in one place, the top-level LICENSE file:
 # Notice
   - Services must be used with fw_package. Before installing services, ensure that fw_package has been installed. Obtain the fw package from the corresponding OEM.<br>
   - fw_switch uses fastboot; you can install fastboot with `sudo apt-get install fastboot`<br>
-  - This application ships **Ubuntu 26.04 only**.  The four service
-    binaries are built on Ubuntu 26.04 (glibc 2.42, libxml2.so.16,
-    glib 2.84) and will not run on older releases; do not set
-    `-DDISTRO_TAG` to any value other than `ubuntu26.04`.<br>
+  - This application runs on **Ubuntu 26.04 or later**. <br>
 
 # Building on Ubuntu
 
@@ -47,7 +44,11 @@ executables ship prebuilt in application/rolling_*_service/.
 
 ## 1. Install
 
-- sudo apt install cmake<br>
+- sudo apt install cmake patchelf<br>
+  (`patchelf` is required by the packaging step: it appends the
+  `/usr/lib/rolling/vendor/lib` RUNPATH to the prebuilt binaries so they
+  resolve the bundled third-party libraries; without it the deb cannot be
+  produced.)
 
 ## 2. Build
 1. cmake -S . -B build -DPROJECT_BUILD=xxx -DOEM_BUILD=yyy<br>

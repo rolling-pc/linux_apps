@@ -68,6 +68,10 @@ DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
 DEB_BIN_DIR="${DEB_SOFT_DIRS}/usr/bin"
 DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/linux-apps"
 DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
+# Private copy of third-party shared libraries (libxml2, glib, fwupd, ...).
+# Bundling them decouples the package from the distro's SONAME package
+# names (libxml2-16 etc.), which drift across Ubuntu releases.
+VENDOR_LIB_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling/vendor/lib"
 DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_config_service"
 DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_flash_service"
 DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
@@ -157,6 +161,54 @@ function copy_file_to_deb_directory()
         fi
         create_fcc_unlock ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
+
+    # Bundle third-party libs and wire up RUNPATH (Ubuntu 26.04+ compat).
+    stage_vendor_libs
+    set_binaries_rpath
+}
+
+# Bundle third-party shared libraries so the package runs on Ubuntu 26.04
+# and later without per-release rebuilds: SONAME-encoded package names
+# (libxml2-16, libglib2.0-0, libfwupd3, ...) drift across releases, the
+# shipped .so files do not.  The full NEEDED closure of each binary is
+# collected via ldd; glibc core libs are never bundled (NSS compatibility
+# hazard) and stay on the system via Depends: libc6.
+function stage_vendor_libs()
+{
+    local bin lib src
+    mkdir -p ${VENDOR_LIB_DIR}
+    for bin in ${DEB_BIN_DIR}/rolling_config ${DEB_BIN_DIR}/rolling_flash \
+               ${DEB_BIN_DIR}/rolling_helper ${DEB_BIN_DIR}/rolling_ma; do
+        [ -f "${bin}" ] || continue
+        ldd "${bin}" 2>/dev/null | awk '/=> \//{print $3}' | while read -r lib; do
+            case "$(basename "${lib}")" in
+                ld-linux*|libc.so*|libm.so*|libpthread*|libdl*|librt*|libresolv*|libnsl*|libutil*|libcrypt*) continue ;;
+            esac
+            src=$(readlink -f "${lib}")
+            cp -f "${src}" ${VENDOR_LIB_DIR}/ 2>/dev/null || true
+            chmod 755 ${VENDOR_LIB_DIR}/$(basename "${src}") 2>/dev/null || true
+        done
+    done
+    echo "vendor libs staged: $(ls ${VENDOR_LIB_DIR} 2>/dev/null | wc -l) files"
+}
+
+# Append the vendor directory to each binary's RUNPATH so the loader finds
+# the bundled .so files regardless of what SONAME package names the distro
+# ships.  --add-rpath (not --set-rpath) preserves any RUNPATH already baked
+# into the prebuilt binaries (e.g. rolling_ma's /usr/lib/rolling for
+# libmodemauth).
+function set_binaries_rpath()
+{
+    if ! command -v patchelf >/dev/null 2>&1; then
+        echo "ERROR: patchelf is required to add the vendor RUNPATH; install it on the build host (apt install patchelf)" >&2
+        return 1
+    fi
+    local bin
+    for bin in ${DEB_BIN_DIR}/rolling_config ${DEB_BIN_DIR}/rolling_flash \
+               ${DEB_BIN_DIR}/rolling_helper ${DEB_BIN_DIR}/rolling_ma; do
+        [ -f "${bin}" ] || continue
+        patchelf --add-rpath "/usr/lib/rolling/vendor/lib:/usr/lib/rolling" "${bin}"
+    done
 }
 
 function create_helper_conf()
