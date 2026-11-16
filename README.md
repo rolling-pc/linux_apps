@@ -26,15 +26,19 @@ Licensing is described in one place, the top-level LICENSE file:
      (application/rolling_config_service/LICENSE,
      application/rolling_flash_service/LICENSE,
      application/rolling_helper_service/LICENSE,
-     application/rolling_ma_service/LICENSE).  The deb package aggregates
-     all four licenses in /usr/share/doc/linux-apps/copyright, together
-     with the MIT notices of the statically incorporated third-party code
-     (iniparser in rolling_config, safestringlib in rolling_flash).<br>
+     application/rolling_ma_service/LICENSE).  The downstream packaging
+     ships debian/copyright at the standard per-package location
+     /usr/share/doc/<binary-package-name>/copyright; we intentionally no
+     longer install a generic /usr/share/doc/linux-apps/ tree from the
+     upstream build (Debian policy 12.5, review 2026-11).<br>
 
 # Notice
   - Services must be used with fw_package. Before installing services, ensure that fw_package has been installed. Obtain the fw package from the corresponding OEM.<br>
   - fw_switch uses fastboot; you can install fastboot with `sudo apt-get install fastboot`<br>
-  - This application is packaged for Ubuntu 24.04 by default; the deb release tag can be set explicitly with `-DDISTRO_TAG=ubuntu26.04` (or ubuntu22.04). Fedora and other OSes are unverified.
+  - This application ships **Ubuntu 26.04 only**.  The four service
+    binaries are built on Ubuntu 26.04 (glibc 2.42, libxml2.so.16,
+    glib 2.84) and will not run on older releases; do not set
+    `-DDISTRO_TAG` to any value other than `ubuntu26.04`.<br>
 
 # Building on Ubuntu
 
@@ -87,8 +91,7 @@ When you install the deb package (built via the `install` script or debian packa
 - **Configuration (dpkg conffiles, Policy 10.7):** `/etc/rolling/config_file/rolling_config_service/` and `/etc/rolling/config_file/rolling_flash_service/` — the ini files are owned by dpkg, so upgrades get the standard conffile merge/prompt handling and `dpkg -V` can verify them
 - **Runtime data (fcc-unlock scripts, fwupd quirk):** `/usr/share/linux-apps/` (package-name directory per FHS; Canonical review 2026-11)
 - **udev rules (usr/lib/udev/rules.d/):** installed by the CMake build; ModemManager/fwupd read them from there.
-- **env.conf (usr/lib/systemd/system/rolling_*.d/env.conf):** installed by the CMake build; systemd reads these EnvironmentFile drop-ins at service start.
-- **systemd units:** `/usr/lib/systemd/system/rolling_*.service`
+- **systemd units:** `/usr/lib/systemd/system/rolling_*.service`.  The `LD_LIBRARY_PATH=...:/usr/local/lib` runtime variable used to live in a rolling_*.d/env.conf drop-in under /usr (review 2026-11 FHS compliance issue); it is now inlined as a plain `Environment=` directive in each unit, so no drop-in directory is staged.
 - **D-Bus policy:** `/usr/share/dbus-1/system.d/com.rolling.helper.conf`
 
 Note: the ini conffiles land directly in `/etc/rolling/config_file/` via dpkg (no postinst seeding); the runtime state directories `/var/lib/rolling/run` and `/var/lib/rolling/rolling_fw_pkg` are created by the postinst (their paths are compiled into the binaries). When upgrading from a pre-2.1.12 revision, the preinst carries over operator-edited ini files from the legacy `/etc/opt/rolling` layout.

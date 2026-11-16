@@ -38,7 +38,7 @@ option(BUILD_CONFIG "build config" "")
 option(BUILD_MA "build ma" "")
 option(BUILD_MA_LIB "build ma lib artifact" "")
 option(BUILD_BY_LIB "use prebuilt libs" "")
-set(DISTRO_TAG "" CACHE STRING "Debian package release tag, e.g. ubuntu22.04 or ubuntu26.04")
+set(DISTRO_TAG "ubuntu26.04" CACHE STRING "Debian package release tag, e.g. ubuntu26.04. Ubuntu 22.04/24.04 are not supported because the prebuilt binaries are built on Ubuntu 26.04 (glibc 2.42, libxml2.so.16).")
 
 set(build_deb FALSE)
 set(build_rpm FALSE)
@@ -199,14 +199,24 @@ macro(rolling_linux_configure_deb_package)
     # land where the maintainer scripts and unit files expect them.
     set(CPACK_PACKAGING_INSTALL_PREFIX "/")
 
-    # rolling_flash links libfwupd.so.3 on Ubuntu 22.04/24.04/26.04 (package libfwupd3).
-    # Declaring libfwupd2 leaves .so.3 unresolved at runtime (service exit 127).
-        # Ubuntu 26.04: libxml2 SONAME -> libxml2.so.16 (package libxml2-16)
-        # init-system-helpers provides deb-systemd-helper / deb-systemd-invoke,
-        # which the maintainer scripts use instead of raw systemctl
-        # (Policy 9.3.x, upstream review 2026-11).
-        set(_rolling_deb_runtime_depends
-            "init-system-helpers, libxml2-16, libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
+    # rolling_flash links libfwupd.so.3 on Ubuntu 22.04/24.04/26.04
+    # (package libfwupd3 on all three); declaring libfwupd2 leaves .so.3
+    # unresolved at runtime (service exit 127).
+    #
+    # libxml2 SONAME differs by distro.  Binaries are built on Ubuntu 26.04
+    # (libxml2.so.16, package "libxml2-16"); we keep the old conditional
+    # below only for future flexibility if we ever ship non-26.04 builds.
+    if(DISTRO_TAG STREQUAL "ubuntu26.04" OR NOT DISTRO_TAG)
+        set(_xml2_dep "libxml2-16")
+    else()
+        message(FATAL_ERROR "This package currently targets Ubuntu 26.04 only; DISTRO_TAG=${DISTRO_TAG} is not supported.")
+    endif()
+
+    # init-system-helpers provides deb-systemd-helper / deb-systemd-invoke,
+    # which the maintainer scripts use instead of raw systemctl
+    # (Policy 9.3.x, upstream review 2026-11).
+    set(_rolling_deb_runtime_depends
+        "init-system-helpers, ${_xml2_dep}, libglib2.0-0, libfwupd3, modemmanager, libmbim-glib4, libudev1")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "${_rolling_deb_runtime_depends}")
     message(STATUS "Debian package depends: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
 endmacro()

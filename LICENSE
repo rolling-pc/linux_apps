@@ -598,9 +598,11 @@ permitted, provided that the following conditions are met:
 2.  The Prebuilt Binaries may be redistributed only in unmodified form.  A
     copy of this license must accompany every redistribution: either the
     copy shipped next to the artefacts, or a document that reproduces it
-    in full (for example /usr/share/doc/linux-apps/copyright in the
-    Debian package, which the package build generates from the four
-    per-directory LICENSE copies).
+    in full (for example the Debian package's copyright file under
+    /usr/share/doc/<binary-package-name>/copyright, which the downstream
+    packaging generates from the four per-directory LICENSE copies in
+    this source tree; the upstream build no longer stages a generic
+    /usr/share/doc/linux-apps/ directory).
 
 3.  Neither the name of the copyright holder nor the names of its
     contributors may be used to endorse or promote products derived from

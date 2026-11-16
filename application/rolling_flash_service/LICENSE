@@ -53,7 +53,9 @@ This license applies to the single prebuilt file in this directory (the
         form.  A copy of this license must accompany every redistribution:
         either this file, or a document that reproduces it in full -- for
         example the copyright file of a binary package that ships it
-        (/usr/share/doc/linux-apps/copyright in the Debian package).
+        (/usr/share/doc/<binary-package-name>/copyright in the Debian
+        package; the upstream build no longer stages a generic
+        /usr/share/doc/linux-apps/ directory).
         Verifying a copy against the SHA-256 digest above is the
         recommended way to establish that it is unmodified.
 
@@ -75,7 +77,7 @@ This license applies to the single prebuilt file in this directory (the
         granted by the MIT License with respect to that
         safestringlib-derived code; the MIT copyright notice and
         permission text are reproduced in the copyright file of the
-        Debian package (/usr/share/doc/linux-apps/copyright).
+        Debian package (/usr/share/doc/<binary-package-name>/copyright).
 
 
 3.  DISCLAIMER

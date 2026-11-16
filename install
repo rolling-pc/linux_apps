@@ -186,7 +186,11 @@ Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 
 [Service]
-EnvironmentFile=/usr/lib/systemd/system/rolling_config.d/env.conf
+# FHS 2026-11 review: do not ship config files under /usr.  The single
+# LD_LIBRARY_PATH=...:/usr/local/lib line that used to live in the
+# rolling_config.d/env.conf drop-in is inlined here as a plain Environment=
+# directive, so the whole drop-in directory can be removed.
+Environment="LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
 ExecStart=/usr/bin/rolling_config
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
@@ -220,7 +224,9 @@ Description=Firmware Flash Service
 Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service rolling_helper.service
 [Service]
-EnvironmentFile=/usr/lib/systemd/system/rolling_flash.d/env.conf
+# FHS 2026-11 review: same rationale as rolling_config.service -- inline
+# Environment= removes the rolling_flash.d/env.conf drop-in.
+Environment="LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
 ExecStart=/usr/bin/rolling_flash
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
@@ -254,7 +260,9 @@ Documentation=https://github.com/rolling-pc/linux_apps
 After=ModemManager.service
 
 [Service]
-EnvironmentFile=/usr/lib/systemd/system/rolling_helper.d/env.conf
+# FHS 2026-11 review: same rationale as rolling_config.service -- inline
+# Environment= removes the rolling_helper.d/env.conf drop-in.
+Environment="LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
 ExecStart=/usr/bin/rolling_helper
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-abort
@@ -276,26 +284,6 @@ RestrictSUIDSGID=yes
 Alias=rolling_helper.service
 WantedBy=multi-user.target" > $1/rolling_helper.service
     chmod 644 $1/rolling_helper.service
-
-}
-
-function create_config_d()
-{
-    echo "LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/lib" > $1/env.conf
-    chmod 644 $1/env.conf
-
-}
-
-function create_flash_d()
-{
-    echo "LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/lib" > $1/env.conf
-    chmod 644 $1/env.conf
-
-}
-function create_helper_d()
-{
-    echo "LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/lib" > $1/env.conf
-    chmod 644 $1/env.conf
 
 }
 
@@ -394,20 +382,14 @@ function create_and_install()
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
         create_config_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
-        mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
-        create_config_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_config.d/
         mkdir -p ${DEB_CONFIG_SERVICE_DIR}
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
         create_flash_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
-        mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
-        create_flash_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_flash.d/
         mkdir -p ${DEB_FLASH_SERVICE_DIR}
     fi
     if [ "yes" == "${BUILD_HELPER}" ]; then
         create_helper_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
-        mkdir -p ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
-        create_helper_d ${DEB_SOFT_DIRS}/usr/lib/systemd/system/rolling_helper.d/
     fi
     if [ "yes" == "${BUILD_MA}" ]; then
         DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
