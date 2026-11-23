@@ -1,0 +1,209 @@
+.\" Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+.\" SPDX-License-Identifier: LGPL-2.1-or-later
+.TH RWWWANCONFIG.INI 5 "2026-11-20" "rolling-linux 2.1.11" "Rolling WWAN Services Manual"
+.SH NAME
+rwwwanConfig.ini \- runtime configuration file for the rolling_config service
+.SH DESCRIPTION
+.B rwwwanConfig.ini
+is the runtime configuration of the
+.BR rolling_config (8)
+service.  It uses the INI format: a single
+.B [Setting]
+section with
+.I key=value
+pairs; lines starting with
+.B #
+are comments.
+.PP
+The file is not shipped as a package file.  It is seeded into
+.I /etc/rolling/config_file/rolling_config_service/
+from the per\-OEM template under
+.IB /usr/share/linux\-apps/config_set/ <project>_<oem>/
+by
+.B seed_config.sh
+(called best\-effort by the package post\-install script and again by
+the
+.B rolling_seed_config.service
+first\-boot oneshot while the file is missing).  Seeding never
+overwrites an existing file, so local edits survive upgrades;
+.B dpkg \-\-purge
+removes the file together with
+.IR /etc/rolling .
+.SH KEYS
+.TP
+.B Start_Service
+.B 1
+run the configuration service (default),
+.B 0
+keep the service disabled.
+.TP
+.B Debug_level
+Syslog\-style log level:
+.B 7
+DEBUG,
+.B 6
+INFO (default),
+.B 5
+NOTICE,
+.B 4
+WARNING,
+.B 3
+ERROR,
+.B 2
+CRITICAL.
+.TP
+.B disable_at_auto_report
+.B 1
+disable the modem AT auto report,
+.B 0
+enable it.
+.TP
+.B set_suspend_radio
+.B 1
+enable radio suspend,
+.B 0
+disable it.
+.TP
+.B Sim_slots_switch
+.B 0
+do nothing,
+.B 1
+switch to SIM card slot 1 (default),
+.B 2
+switch to SIM card slot 2.
+.TP
+.B Fcc_lock_enable
+.B 0
+do nothing,
+.B 1
+disable the FCC lock,
+.B 2
+enable it.
+.TP
+.B Wdisable_enable
+.B 0
+do nothing,
+.B 1
+disable (default),
+.B 2
+enable.
+.TP
+.B Gnss_enable
+.B 0
+do nothing,
+.B 1
+disable,
+.B 2
+enable GNSS.
+.TP
+.B Band_config_enable
+.B 0
+do nothing,
+.B 1
+disable,
+.B 2
+apply the band configuration.
+.TP
+.B Net_type_enable
+.B 0
+do nothing,
+.B 1
+2G,
+.B 2
+3G,
+.B 3
+4G (default),
+.B 4
+5G.
+.TP
+.B Disable_esim
+.B 0
+do nothing,
+.B 1
+disable the eSIM.
+.TP
+.B CustomizationSolutionType
+.B 1
+disable the FbWwanConfig service (default),
+.B 2
+SarIndex mapped by software and BIOS,
+.B 3
+SarIndex mapped by SarIndexMappingTable.xml.
+.TP
+.B SarDownloadType
+How the SAR parameter is written to the modem:
+.B 1
+by image flash (default),
+.B 2
+by SarConfigValuesTable.xml mapping and AT commands.
+.TP
+.B ProjectType
+.B 0
+do nothing (default),
+.B 1
+L860,
+.B 2
+L860 R+ HP,
+.B 3
+L860 R+ Lenovo.
+.TP
+.B SarType
+.B 0
+none (default),
+.B 1
+BodySAR,
+.B 2
+TA SAR.
+.TP
+.B SarMapType
+.B 0
+do nothing (default),
+.B 1
+to
+.B 5
+select MapType_1 to MapType_5 from
+DeviceModeToScenarioIndexMappingTable.xml.
+.TP
+.B BodysarState
+BodySAR control:
+.B 0
+do nothing (default),
+.B 1
+hardware,
+.B 2
+software.
+.TP
+.B TASarState
+TA SAR control:
+.B 0
+do nothing (default),
+.B 1
+hardware,
+.B 2
+software.
+.TP
+.B AntTurnerState
+Antenna tuner:
+.B 0
+do nothing (default),
+.B 1
+disable,
+.B 2
+enable.
+.SH FILES
+.TP
+.I /etc/rolling/config_file/rolling_config_service/rwwwanConfig.ini
+Runtime configuration.
+.TP
+.IB /usr/share/linux\-apps/config_set/ <project>_<oem>/
+Per\-OEM templates shipped by the package.
+.SH EXAMPLES
+.nf
+[Setting]
+Start_Service=1
+Debug_level=6
+disable_at_auto_report=1
+.fi
+.SH SEE ALSO
+.BR rolling_config (8),
+.BR FwUpdate.ini (5)

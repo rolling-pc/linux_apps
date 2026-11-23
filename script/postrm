@@ -1,4 +1,20 @@
 #!/bin/sh
+#/* This program is free software; you can redistribute it and/or modify
+# * it under the terms of the GNU Lesser General Public License as published by
+# * the Free Software Foundation; either version 2 of the License, or
+# * (at your option) any later version.
+# *
+# * This program is distributed in the hope that it will be useful,
+# * but WITHOUT ANY WARRANTY; without even the implied warranty of
+# * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# * GNU Lesser General Public License for more details.
+# *
+# * You should have received a copy of the GNU Lesser General Public License
+# * along with this program. If not, see <http://www.gnu.org/licenses/>.
+# *
+# * Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+# */
+#
 # postrm for linux-apps.
 #
 # SINGLE SOURCE OF TRUTH: the CPack build embeds script/<name> verbatim via
@@ -10,13 +26,14 @@
 # upstream review 2026-11: enablement state is cleaned up with
 # deb-systemd-helper (Policy 9.3.x) instead of raw systemctl; the fwupd quirk
 # entry is now a symlink whose target is a dpkg-owned file under
-# /usr/share/linux-apps.  Canonical review 2026-11: the ini files under
-# /etc/rolling are dpkg conffiles (Policy 10.7), so dpkg removes them itself
-# on purge; the rm -rf below only cleans runtime files and legacy trees.
+# /usr/share/linux-apps.  Universal package (2.1.11): the ini files under
+# /etc/rolling are runtime-seeded by seed_config.sh (no longer dpkg
+# conffiles), so the rm -rf below is what removes them (and any operator
+# edits) on purge.
 
 set -e
 
-SERVICE_UNITS="rolling_helper rolling_config rolling_flash"
+SERVICE_UNITS="rolling_helper rolling_config rolling_flash rolling_seed_config"
 FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
 MM_DROPIN="/etc/systemd/system/ModemManager.service.d/50-rolling-linux-apps.conf"
 FWUPD_QUIRK_FILE="/usr/share/fwupd/quirks.d/rolling-linux-apps.quirk"

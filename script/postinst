@@ -1,4 +1,20 @@
 #!/bin/sh
+#/* This program is free software; you can redistribute it and/or modify
+# * it under the terms of the GNU Lesser General Public License as published by
+# * the Free Software Foundation; either version 2 of the License, or
+# * (at your option) any later version.
+# *
+# * This program is distributed in the hope that it will be useful,
+# * but WITHOUT ANY WARRANTY; without even the implied warranty of
+# * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# * GNU Lesser General Public License for more details.
+# *
+# * You should have received a copy of the GNU Lesser General Public License
+# * along with this program. If not, see <http://www.gnu.org/licenses/>.
+# *
+# * Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+# */
+#
 # postinst for linux-apps.
 #
 # SINGLE SOURCE OF TRUTH: the CPack build embeds script/<name> verbatim via
@@ -15,16 +31,20 @@
 #  - fcc-unlock helpers and the fwupd quirk ship as dpkg-owned real files
 #    under /usr/share/linux-apps; only symlinks are created in the consuming
 #    directories (ModemManager / fwupd), never copied content.
-# Canonical review 2026-11:
-#  - the ini configuration files are dpkg conffiles (Policy 10.7); they are
-#    unpacked by dpkg straight into /etc/rolling/config_file and upgraded /
-#    merged / purged by dpkg itself.  This script never seeds or touches
-#    them.  Legacy /etc/opt/rolling migration happens in preinst, before
-#    unpack, so carried-over files get conffile semantics from dpkg.
+# Universal package (2.1.11, single package per project):
+#  - the ini files are NO LONGER dpkg conffiles.  They ship as per-OEM
+#    templates under /usr/share/linux-apps/{config,flash}_set/ and are
+#    seeded into /etc/rolling/config_file by /usr/share/linux-apps/
+#    seed_config.sh: once here (best-effort -- an image-build chroot has no
+#    DMI), and at every boot by the rolling_seed_config.service oneshot
+#    while the config is still missing.  Seeding never overwrites an
+#    existing file, so operator edits survive upgrades.
+#  - /usr/bin/rolling_helper is a DMI-dispatch wrapper execing the OEM
+#    variant under /usr/lib/rolling/rolling_helper_service/helper_set/.
 
 set -e
 
-SERVICE_UNITS="rolling_helper rolling_config rolling_flash"
+SERVICE_UNITS="rolling_helper rolling_config rolling_flash rolling_seed_config"
 FCC_IDS="14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215"
 # dpkg-owned real files shipped by the package (staged by the "install"
 # helper, see create_fcc_unlock / create_fwupd_quirk).
@@ -123,6 +143,9 @@ start_services() {
     [ -d /run/systemd/system ] || return 0
     units=""
     for unit in $SERVICE_UNITS; do
+        # The seed unit is a oneshot with its own ConditionPathExists guards;
+        # it runs on the next boot if needed, not from the maintainer script.
+        [ "$unit" = "rolling_seed_config" ] && continue
         if unit_file_present "${unit}.service"; then
             units="$units ${unit}.service"
         fi
@@ -138,6 +161,16 @@ start_services() {
     return 0
 }
 
+# Seed the OEM-matching ini files into /etc/rolling/config_file (best
+# effort: a real machine has a DMI vendor, an image-build chroot does not --
+# the rolling_seed_config.service oneshot re-runs this at first boot).
+seed_oem_config() {
+    if [ -x /usr/share/linux-apps/seed_config.sh ]; then
+        /usr/share/linux-apps/seed_config.sh 2>&1 || true
+    fi
+    return 0
+}
+
 fix_modes
 install_fcc_unlock
 
@@ -147,6 +180,7 @@ install -d -m 0755 /var/lib/rolling/run
 install -d -m 0755 /var/lib/rolling/rolling_fw_pkg
 
 install_fwupd_quirk
+seed_oem_config
 enable_services
 start_services
 

@@ -1,4 +1,19 @@
 #! /bin/bash
+#/* This program is free software; you can redistribute it and/or modify
+# * it under the terms of the GNU Lesser General Public License as published by
+# * the Free Software Foundation; either version 2 of the License, or
+# * (at your option) any later version.
+# *
+# * This program is distributed in the hope that it will be useful,
+# * but WITHOUT ANY WARRANTY; without even the implied warranty of
+# * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# * GNU Lesser General Public License for more details.
+# *
+# * You should have received a copy of the GNU Lesser General Public License
+# * along with this program. If not, see <http://www.gnu.org/licenses/>.
+# *
+# * Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+# */
 
 basedir=`cd \`dirname $0\`; pwd`
 BUILD_DIR=${basedir}/build
@@ -9,7 +24,6 @@ CONFIG_SERVICE_APP_DIR="${APP_DIR}/rolling_config_service"
 CONFIG_SERVICE_APP_PATH="${APP_DIR}/rolling_config_service/rolling_config"
 FLASH_SERVICE_APP_PATH="${APP_DIR}/rolling_flash_service/rolling_flash"
 FLASH_SERVICE_APP_DIR="${APP_DIR}/rolling_flash_service"
-HELPER_SERVICE_APP_PATH="${APP_DIR}/rolling_helper_service/"
 MA_SERVICE_COMMON_LIB="${basedir}/binary_deb/common_lib"
 # rolling_ma ships as a prebuilt binary next to its (unpublished) sources.
 # The CMake build output is preferred when the sources are ever added.
@@ -55,26 +69,35 @@ function resolve_rolling_ma_source()
 
 
 # FHS 3.13 / Debian Policy 9.1.1 (upstream review 2026-11): Debian packages
-# must not install under /opt.  Binaries go to /usr/bin, the lenovo-only
-# shared library to /usr/lib/rolling, and architecture-independent runtime
-# data (fcc-unlock helpers, fwupd quirk) to /usr/share/<package>/
-# (Canonical review 2026-11: the directory must be the package name, cf.
-# /usr/share/pipewire).
-# The ini configuration files are dpkg conffiles (Policy 10.7, Canonical
-# review 2026-11): they are staged straight into /etc/rolling/config_file
-# and listed in DEBIAN/conffiles, so dpkg owns upgrade/merge handling and
-# the postinst never seeds /etc itself.
+# must not install under /opt.  Binaries go to /usr/bin, OEM-specific
+# binaries and shared libraries to /usr/lib/rolling, and
+# architecture-independent runtime data (fcc-unlock helpers, fwupd quirk,
+# ini templates) to /usr/share/<package>/ (Canonical review 2026-11: the
+# directory must be the package name, cf. /usr/share/pipewire).
+#
+# Universal package (single package per project, 2026-11): one deb covers
+# every OEM.  OEM-specific assets are ALL shipped and selected at runtime:
+#   - rolling_helper variants live under
+#     /usr/lib/rolling/rolling_helper_service/helper_set/<project>_<oem>/;
+#     /usr/bin/rolling_helper is a generated DMI-dispatch wrapper that execs
+#     the variant matching the machine vendor.
+#   - ini files ship as templates under
+#     /usr/share/linux-apps/{config,flash}_set/<project>_<oem>/ and are
+#     seeded into /etc/rolling/config_file by seed_config.sh (postinst
+#     best-effort + rolling_seed_config.service oneshot at first boot).
+#     They are NOT dpkg conffiles in this layout; seeding never overwrites
+#     an existing file, so operator edits survive upgrades.
 DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
 DEB_BIN_DIR="${DEB_SOFT_DIRS}/usr/bin"
 DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/linux-apps"
 DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
-# Private copy of third-party shared libraries (libxml2, glib, fwupd, ...).
-# Bundling them decouples the package from the distro's SONAME package
-# names (libxml2-16 etc.), which drift across Ubuntu releases.
-VENDOR_LIB_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling/vendor/lib"
-DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_config_service"
-DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_flash_service"
+# NOTE (Debian UpstreamGuide): third-party shared libraries (libxml2,
+# glib, fwupd, mbim, udev, ...) are NOT bundled here -- they are
+# resolved from the system at run time via the declared package
+# dependencies (see CPACK_DEBIAN_PACKAGE_DEPENDS in CMakeLists.txt).
 DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
+# Source tree locations of the OEM-specific assets.
+HELPER_SET_DIR="${APP_DIR}/rolling_helper_service/helper_set"
 
 OEMUSBID_LIST=( 14c3:4d75 2cb7:01a2 2cb7:0301 413c:8209 413c:8211 413c:8213 413c:8215 )
 
@@ -87,8 +110,13 @@ BUILD_CONFIG=$(grep -o 'set(BUILD_CONFIG "[^"]*"' ${BUILD_DIR}/*_config.cmake | 
 BUILD_MA=$(grep -o 'set(BUILD_MA "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 OEM_BUILD=$(grep -o 'set(OEM_BUILD "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
 PROJECT_BUILD=$(grep -o 'set(PROJECT_BUILD "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
+# All OEM sections of <project>_config (emitted by cmake_config).  The
+# universal package stages the assets of every section.
+OEM_SECTIONS=$(grep -o 'set(OEM_SECTIONS "[^"]*"' ${BUILD_DIR}/*_config.cmake | awk -F'"' '{print $2}')
+[ -n "${OEM_SECTIONS}" ] || OEM_SECTIONS="${OEM_BUILD}"
 echo "OEM_BUILD: ${OEM_BUILD}"
 echo "PROJECT_BUILD: ${PROJECT_BUILD}"
+echo "OEM_SECTIONS: ${OEM_SECTIONS}"
 
 echo "build helper package ${BUILD_HELPER}"
 echo "build down tool package ${BUILD_DOWN_TOOL}"
@@ -108,107 +136,149 @@ function operation_menu_select()
     done
 }
 
+# DMI sys_vendor patterns per OEM name.  Used by the generated helper
+# dispatcher and the generated seed_config.sh to pick the OEM-specific
+# assets at runtime.  An OEM without a known DMI pattern contributes no
+# case arm (unknown-vendor machines then fail loudly instead of running a
+# wrong-OEM helper).
+function oem_dmi_pattern()
+{
+    case "$1" in
+        dell)   echo "Dell*" ;;
+        lenovo) echo "LENOVO*" ;;
+        hp)     echo "HP*" ;;
+        *)      echo "" ;;
+    esac
+}
+
 # 修改copy_file_to_deb_directory函数
 function copy_file_to_deb_directory()
 {
-    # copy configservice file
-    if [ "$(ls -A $DEB_CONFIG_SERVICE_DIR)" ]; then
-        rm -r ${DEB_CONFIG_SERVICE_DIR}/*
-    fi
-    if [ "$(ls -A $DEB_FLASH_SERVICE_DIR)" ]; then
-        rm -r ${DEB_FLASH_SERVICE_DIR}/*
-    fi
     mkdir -p ${DEB_BIN_DIR}
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
-        # binary -> /usr/bin, ini conffiles -> /etc/rolling/config_file/<service>/
-        # (Policy 10.7: dpkg-owned conffiles, listed in DEBIAN/conffiles)
+        # binary -> /usr/bin, ini templates -> /usr/share/linux-apps/config_set/
+        # The matching set is seeded into /etc/rolling/config_file at runtime
+        # by seed_config.sh (DMI-detected OEM); no /etc staging here.
         cp -fraf ${CONFIG_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
-        # runtime config data, selected per OEM from config_set/<project>_<oem>/
-        cp -f ${CONFIG_SERVICE_APP_DIR}/config_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_CONFIG_SERVICE_DIR}/ 2>/dev/null || true
-    fi
-
-    if [ "yes" == "${BUILD_FLASH}" ]; then
-        # binary -> /usr/bin, ini conffiles -> /etc/rolling/config_file/<service>/
-        cp -fraf ${FLASH_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
-        # runtime config data, selected per OEM from flash_set/<project>_<oem>/
-        cp -f ${FLASH_SERVICE_APP_DIR}/flash_set/${PROJECT_BUILD}_${OEM_BUILD}/*.ini ${DEB_FLASH_SERVICE_DIR}/ 2>/dev/null || true
-    fi
-
-    if [ "yes" == "${BUILD_HELPER}" ]; then
-        # single prebuilt binary -> /usr/bin/rolling_helper
-        cp -fraf ${HELPER_SERVICE_APP_PATH}/*rolling_helper ${DEB_BIN_DIR} 2>/dev/null || true
-        # 确保实际二进制文件被重命名为rolling_helper
-        for bin_file in ${DEB_BIN_DIR}/*rolling_helper; do
-            if [ -f "$bin_file" ] && [ "$bin_file" != "${DEB_BIN_DIR}/rolling_helper" ]; then
-                mv "$bin_file" "${DEB_BIN_DIR}/rolling_helper"
-                break
+        for oem in ${OEM_SECTIONS}; do
+            src="${CONFIG_SERVICE_APP_DIR}/config_set/${PROJECT_BUILD}_${oem}"
+            if [ -d "${src}" ]; then
+                mkdir -p ${DEB_SHARE_DIR}/config_set/${PROJECT_BUILD}_${oem}
+                cp -f ${src}/*.ini ${DEB_SHARE_DIR}/config_set/${PROJECT_BUILD}_${oem}/
+            else
+                echo "ERROR: config_set missing for ${PROJECT_BUILD}_${oem}: ${src}" >&2
+                exit 1
             fi
         done
     fi
 
+    if [ "yes" == "${BUILD_FLASH}" ]; then
+        # binary -> /usr/bin, ini templates -> /usr/share/linux-apps/flash_set/
+        cp -fraf ${FLASH_SERVICE_APP_PATH} ${DEB_BIN_DIR} 2>/dev/null || true
+        for oem in ${OEM_SECTIONS}; do
+            src="${FLASH_SERVICE_APP_DIR}/flash_set/${PROJECT_BUILD}_${oem}"
+            if [ -d "${src}" ]; then
+                mkdir -p ${DEB_SHARE_DIR}/flash_set/${PROJECT_BUILD}_${oem}
+                cp -f ${src}/*.ini ${DEB_SHARE_DIR}/flash_set/${PROJECT_BUILD}_${oem}/
+            else
+                echo "ERROR: flash_set missing for ${PROJECT_BUILD}_${oem}: ${src}" >&2
+                exit 1
+            fi
+        done
+    fi
+
+    if [ "yes" == "${BUILD_HELPER}" ]; then
+        # Universal package: every OEM's helper binary ships under
+        # /usr/lib/rolling/rolling_helper_service/helper_set/<project>_<oem>/
+        # and /usr/bin/rolling_helper is a generated DMI-dispatch wrapper.
+        # A missing variant is a packaging error: the wrapper would have no
+        # binary to exec for that OEM.
+        mkdir -p ${DEB_LIB_ROLLING_DIR}/rolling_helper_service/helper_set
+        for oem in ${OEM_SECTIONS}; do
+            variant="${HELPER_SET_DIR}/${PROJECT_BUILD}_${oem}/rolling_helper"
+            if [ -f "${variant}" ]; then
+                dest_dir="${DEB_LIB_ROLLING_DIR}/rolling_helper_service/helper_set/${PROJECT_BUILD}_${oem}"
+                mkdir -p ${dest_dir}
+                cp -f ${variant} ${dest_dir}/rolling_helper
+                chmod 755 ${dest_dir}/rolling_helper
+                echo "packaged rolling_helper variant ${PROJECT_BUILD}_${oem}"
+            else
+                echo "ERROR: rolling_helper variant missing: ${variant}" >&2
+                exit 1
+            fi
+        done
+        create_helper_dispatcher ${DEB_BIN_DIR}/rolling_helper
+    fi
+
     if [ "yes" == "${BUILD_MA}" ]; then
         mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
-        if [ "lenovo" == "${OEM_BUILD}" ]; then
-            mkdir -p ${DEB_LIB_ROLLING_DIR}
+        # Universal package: both FCC unlock backends ship, and the
+        # generated fcc-unlock scripts dispatch on the DMI vendor
+        # (rolling_ma for Dell machines, libmodemauth for Lenovo machines).
+        mkdir -p ${DEB_LIB_ROLLING_DIR}
+        rolling_ma_src=$(resolve_rolling_ma_source)
+        cp -f "${rolling_ma_src}" ${DEB_BIN_DIR}/rolling_ma
+        chmod 755 ${DEB_BIN_DIR}/rolling_ma
+        echo "packaged rolling_ma from ${rolling_ma_src}"
+        HAVE_LIBMODEMAUTH=0
+        if [ -f "${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1" ]; then
             cp -f ${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1 ${DEB_LIB_ROLLING_DIR}/
             chmod 755 ${DEB_LIB_ROLLING_DIR}/libmodemauth.so.1.1
+            HAVE_LIBMODEMAUTH=1
+            echo "packaged libmodemauth.so.1.1 for Lenovo FCC unlock"
         else
-            rolling_ma_src=$(resolve_rolling_ma_source)
-            cp -f "${rolling_ma_src}" ${DEB_BIN_DIR}/rolling_ma
-            chmod 755 ${DEB_BIN_DIR}/rolling_ma
-            echo "packaged rolling_ma from ${rolling_ma_src}"
+            # Not fatal: historical lenovo sections shipped no MA component at
+            # all (BUILD_MA=no), so a build host without the materialized
+            # common-lib tree used to succeed.  Warn loudly; the generated
+            # fcc-unlock scripts then have no Lenovo arm and the unknown-
+            # vendor arm reports it at runtime.
+            echo "WARNING: libmodemauth.so.1.1 not found in ${MA_SERVICE_COMMON_LIB}" >&2
+            echo "  the fcc-unlock scripts will have no Lenovo (libmodemauth) arm" >&2
         fi
         create_fcc_unlock ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
 
-    # Bundle third-party libs and wire up RUNPATH (Ubuntu 26.04+ compat).
-    stage_vendor_libs
-    set_binaries_rpath
+    # NOTE: no third-party library staging and no RUNPATH rewriting here;
+    # the binaries load the system copies via the declared package
+    # dependencies (Debian UpstreamGuide: do not bundle third-party
+    # code, do not modify files at install time).
 }
 
-# Bundle third-party shared libraries so the package runs on Ubuntu 26.04
-# and later without per-release rebuilds: SONAME-encoded package names
-# (libxml2-16, libglib2.0-0, libfwupd3, ...) drift across releases, the
-# shipped .so files do not.  The full NEEDED closure of each binary is
-# collected via ldd; glibc core libs are never bundled (NSS compatibility
-# hazard) and stay on the system via Depends: libc6.
-function stage_vendor_libs()
+# Generate /usr/bin/rolling_helper as a DMI-dispatch wrapper.  systemd keeps
+# running this path (Type=simple, Restart=on-abort, ExecReload=kill -HUP all
+# still apply); exec replaces the shell so signals reach the real binary.
+# Unknown vendors exit non-zero: silently running a wrong-OEM helper on the
+# flash/config path is worse than a clear "service failed" in the journal.
+function create_helper_dispatcher()
 {
-    local bin lib src
-    mkdir -p ${VENDOR_LIB_DIR}
-    for bin in ${DEB_BIN_DIR}/rolling_config ${DEB_BIN_DIR}/rolling_flash \
-               ${DEB_BIN_DIR}/rolling_helper ${DEB_BIN_DIR}/rolling_ma; do
-        [ -f "${bin}" ] || continue
-        ldd "${bin}" 2>/dev/null | awk '/=> \//{print $3}' | while read -r lib; do
-            case "$(basename "${lib}")" in
-                ld-linux*|libc.so*|libm.so*|libpthread*|libdl*|librt*|libresolv*|libnsl*|libutil*|libcrypt*) continue ;;
-            esac
-            src=$(readlink -f "${lib}")
-            cp -f "${src}" ${VENDOR_LIB_DIR}/ 2>/dev/null || true
-            chmod 755 ${VENDOR_LIB_DIR}/$(basename "${src}") 2>/dev/null || true
-        done
+    cat > "$1" <<DISPATCH_EOF
+#!/bin/sh
+# OEM dispatcher for rolling_helper (auto-generated by the packaging install
+# script; do not edit).  The rolling_helper binary is OEM-specific; the
+# universal package ships every variant under
+# /usr/lib/rolling/rolling_helper_service/helper_set/ and this wrapper execs
+# the one matching the machine vendor (DMI).
+HELPER_LIB_DIR=/usr/lib/rolling/rolling_helper_service/helper_set
+vendor=\$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) || vendor=""
+if [ -z "\$vendor" ]; then
+    vendor=\$(cat /sys/class/dmi/id/board_vendor 2>/dev/null) || vendor=""
+fi
+case "\$vendor" in
+DISPATCH_EOF
+    for sec in ${OEM_SECTIONS}; do
+        pattern=$(oem_dmi_pattern "${sec}")
+        [ -n "${pattern}" ] || continue
+        printf '    %s) exec "$HELPER_LIB_DIR/%s_%s/rolling_helper" "$@" ;;\n' \
+            "${pattern}" "${PROJECT_BUILD}" "${sec}" >> "$1"
     done
-    echo "vendor libs staged: $(ls ${VENDOR_LIB_DIR} 2>/dev/null | wc -l) files"
-}
-
-# Append the vendor directory to each binary's RUNPATH so the loader finds
-# the bundled .so files regardless of what SONAME package names the distro
-# ships.  --add-rpath (not --set-rpath) preserves any RUNPATH already baked
-# into the prebuilt binaries (e.g. rolling_ma's /usr/lib/rolling for
-# libmodemauth).
-function set_binaries_rpath()
-{
-    if ! command -v patchelf >/dev/null 2>&1; then
-        echo "ERROR: patchelf is required to add the vendor RUNPATH; install it on the build host (apt install patchelf)" >&2
-        return 1
-    fi
-    local bin
-    for bin in ${DEB_BIN_DIR}/rolling_config ${DEB_BIN_DIR}/rolling_flash \
-               ${DEB_BIN_DIR}/rolling_helper ${DEB_BIN_DIR}/rolling_ma; do
-        [ -f "${bin}" ] || continue
-        patchelf --add-rpath "/usr/lib/rolling/vendor/lib:/usr/lib/rolling" "${bin}"
-    done
+    cat >> "$1" <<'DISPATCH_EOF'
+    *)
+        echo "rolling_helper: no packaged helper variant for DMI vendor '$vendor'" >&2
+        exit 1 ;;
+esac
+DISPATCH_EOF
+    chmod 755 "$1"
 }
 
 function create_helper_conf()
@@ -339,6 +409,98 @@ WantedBy=multi-user.target" > $1/rolling_helper.service
 
 }
 
+function create_seed_service()
+{
+    {
+        echo "[Unit]
+Description=Seed rolling config for the detected OEM (DMI)
+Documentation=https://github.com/rolling-pc/linux_apps
+Before=rolling_config.service rolling_flash.service"
+        if [ "yes" == "${BUILD_CONFIG}" ]; then
+            echo "ConditionPathExists=!/etc/rolling/config_file/rolling_config_service/rwwwanConfig.ini"
+        fi
+        if [ "yes" == "${BUILD_FLASH}" ]; then
+            echo "ConditionPathExists=!/etc/rolling/config_file/rolling_flash_service/FwUpdate.ini"
+        fi
+        echo "[Service]
+Type=oneshot
+ExecStart=/usr/share/linux-apps/seed_config.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target"
+    } > $1/rolling_seed_config.service
+    chmod 644 $1/rolling_seed_config.service
+}
+
+# Generate /usr/share/linux-apps/seed_config.sh.  The universal package ships
+# every OEM's ini files as templates under
+# /usr/share/linux-apps/{config,flash}_set/<project>_<oem>/; this script
+# copies the set matching the DMI vendor into /etc/rolling/config_file.
+# Seeding never overwrites an existing file: operator edits survive upgrades
+# (the ini files are not dpkg conffiles in the universal-package layout).
+# Called by postinst (best-effort; no DMI in image-build chroots) and by the
+# rolling_seed_config.service oneshot at first boot.
+function create_seed_script()
+{
+    cat > "$1" <<'SEED_EOF'
+#!/bin/sh
+# Seed the OEM-matching ini configuration into /etc/rolling/config_file.
+# Auto-generated by the packaging install script; do not edit.
+SEED_EOF
+    echo 'PROJECT_BUILD="'"${PROJECT_BUILD}"'"' >> "$1"
+    cat >> "$1" <<'SEED_EOF'
+
+vendor=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) || vendor=""
+if [ -z "$vendor" ]; then
+    vendor=$(cat /sys/class/dmi/id/board_vendor 2>/dev/null) || vendor=""
+fi
+
+oem=""
+case "$vendor" in
+SEED_EOF
+    for sec in ${OEM_SECTIONS}; do
+        pattern=$(oem_dmi_pattern "${sec}")
+        [ -n "${pattern}" ] || continue
+        printf '    %s) oem="%s" ;;\n' "${pattern}" "${sec}" >> "$1"
+    done
+    cat >> "$1" <<'SEED_EOF'
+esac
+
+if [ -z "$oem" ]; then
+    echo "seed_config: no packaged config set for DMI vendor '$vendor'; nothing seeded" >&2
+    exit 0
+fi
+
+seed_set()
+{
+    src="$1"
+    dest="$2"
+    [ -d "$src" ] || return 0
+    mkdir -p "$dest"
+    for ini in "$src"/*.ini; do
+        [ -f "$ini" ] || continue
+        base=${ini##*/}
+        if [ ! -e "${dest}/${base}" ]; then
+            cp -p "$ini" "${dest}/${base}"
+            echo "seed_config: seeded ${dest}/${base} (oem=${oem})"
+        else
+            echo "seed_config: kept existing ${dest}/${base} (operator edit preserved)"
+        fi
+    done
+    return 0
+}
+
+seed_set "/usr/share/linux-apps/config_set/${PROJECT_BUILD}_${oem}" \
+         /etc/rolling/config_file/rolling_config_service
+seed_set "/usr/share/linux-apps/flash_set/${PROJECT_BUILD}_${oem}" \
+         /etc/rolling/config_file/rolling_flash_service
+
+exit 0
+SEED_EOF
+    chmod 755 "$1"
+}
+
 function create_rule()
 {
     echo "# do not edit this file, it will be overwritten on update
@@ -402,29 +564,66 @@ function create_fcc_unlock()
 {
     for s in ${OEMUSBID_LIST[@]}
     do
-        # 确定要执行的二进制路径 (FHS: no /opt, upstream review 2026-11)
-        local binary_path="/usr/bin/rolling_ma"
-        if [ "lenovo" == "${OEM_BUILD}" ]; then
-            binary_path="/usr/lib/rolling/libmodemauth.so.1.1"
-        fi
-
-        # 创建fcc-unlock脚本
+        # Universal package: the FCC unlock backend differs per OEM
+        # (rolling_ma for Dell machines, libmodemauth for Lenovo machines),
+        # so the script dispatches on the DMI vendor.  The Lenovo arm is
+        # emitted only when libmodemauth.so.1.1 was actually staged
+        # (HAVE_LIBMODEMAUTH, see copy_file_to_deb_directory).
         cat > "$1/$s" << EOF
 #!/bin/sh
 
 # SPDX-License-Identifier: CC0-1.0
 # 2023 Nero zhang <sinaro@sinaro.es>
 #
-# Rolling RW101 FCC unlock mechanism
+# Rolling WWAN FCC unlock mechanism (universal package)
 #
 
-# run fcc-unlock binary
-$binary_path
+vendor=\$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) || vendor=""
+case "\$vendor" in
+    Dell*)   /usr/bin/rolling_ma ;;
+EOF
+        if [ "${HAVE_LIBMODEMAUTH:-0}" = "1" ]; then
+            printf '    LENOVO*) /usr/lib/rolling/libmodemauth.so.1.1 ;;\n' >> "$1/$s"
+        fi
+        cat >> "$1/$s" << 'EOF'
+    *)
+        echo "fcc-unlock: no FCC unlock backend for DMI vendor '$vendor'" >&2
+        exit 1 ;;
+esac
 exit $?
 EOF
         chmod 755 "$1/$s"
     done
 
+}
+
+# Stage the manual pages (Debian Policy 12.1 / UpstreamGuide: every
+# executable and configuration file gets a man page).  gzip -9 -n: the
+# -n drops the timestamp so the staged .gz is reproducible; the dpkg
+# build path compresses them too (dh_compress), and identical input
+# content keeps both build paths in sync.
+function stage_man_pages()
+{
+    local man_src="${basedir}/man"
+    local page
+    mkdir -p ${DEB_SOFT_DIRS}/usr/share/man/man8 ${DEB_SOFT_DIRS}/usr/share/man/man5
+    for page in rolling_config rolling_flash rolling_helper rolling_ma; do
+        if [ ! -f "${man_src}/${page}.8" ]; then
+            echo "ERROR: missing man page ${man_src}/${page}.8" >&2
+            exit 1
+        fi
+        cp -f "${man_src}/${page}.8" ${DEB_SOFT_DIRS}/usr/share/man/man8/
+        gzip -9 -n ${DEB_SOFT_DIRS}/usr/share/man/man8/${page}.8
+    done
+    for page in rwwwanConfig.ini FwUpdate.ini; do
+        if [ ! -f "${man_src}/${page}.5" ]; then
+            echo "ERROR: missing man page ${man_src}/${page}.5" >&2
+            exit 1
+        fi
+        cp -f "${man_src}/${page}.5" ${DEB_SOFT_DIRS}/usr/share/man/man5/
+        gzip -9 -n ${DEB_SOFT_DIRS}/usr/share/man/man5/${page}.5
+    done
+    echo "man pages staged: man8 $(ls ${DEB_SOFT_DIRS}/usr/share/man/man8 | wc -l), man5 $(ls ${DEB_SOFT_DIRS}/usr/share/man/man5 | wc -l)"
 }
 
 function create_and_install()
@@ -434,17 +633,21 @@ function create_and_install()
 
     if [ "yes" == "${BUILD_CONFIG}" ]; then
         create_config_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
-        mkdir -p ${DEB_CONFIG_SERVICE_DIR}
     fi
     if [ "yes" == "${BUILD_FLASH}" ]; then
         create_flash_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
-        mkdir -p ${DEB_FLASH_SERVICE_DIR}
     fi
     if [ "yes" == "${BUILD_HELPER}" ]; then
         create_helper_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
     fi
+    if [ "yes" == "${BUILD_CONFIG}" ] || [ "yes" == "${BUILD_FLASH}" ]; then
+        # ini seeding: no /etc staging (the ini files are runtime-seeded, not
+        # conffiles) -- ship the seed script and a first-boot oneshot unit.
+        mkdir -p ${DEB_SHARE_DIR}
+        create_seed_script ${DEB_SHARE_DIR}/seed_config.sh
+        create_seed_service ${DEB_SOFT_DIRS}/usr/lib/systemd/system/
+    fi
     if [ "yes" == "${BUILD_MA}" ]; then
-        DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
         mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
 
@@ -462,6 +665,9 @@ function create_and_install()
     # quirk directory (upstream review 2026-11: no unmanaged copies).
     mkdir -p ${DEB_SHARE_DIR}/fwupd/quirks.d/
     create_fwupd_quirk ${DEB_SHARE_DIR}/fwupd/quirks.d/
+    # Manual pages (Debian Policy 12.1): staged pre-gzipped, so
+    # USE_SOURCE_PERMISSIONS in CMakeLists.txt keeps them 0644.
+    stage_man_pages
     # NOTE: no copyright installation here (Debian policy 12.5 /
     # upstream review 2026-11).  The copyright must live at
     # /usr/share/doc/<binary-package-name>/copyright, but the binary package
@@ -526,27 +732,6 @@ function normalize_permissions()
     find "${DEB_SOFT_DIRS}" -type f ! -perm -u+x -exec chmod 0644 {} + 2>/dev/null || true
 }
 
-# Generate DEBIAN/conffiles (Policy 10.7, Canonical review 2026-11).
-#
-# The ini files staged under etc/rolling/config_file are dpkg conffiles: the
-# entries are the packaged (absolute) paths, and the file itself is added to
-# CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA in CMakeLists.txt so it lands in the
-# DEBIAN/ control tarball.  dpkg then owns the whole conffile lifecycle:
-# upgrade prompts/merge, dpkg -V verification, purge cleanup.  The list must
-# stay in sync with what copy_file_to_deb_directory stages.
-function write_conffiles()
-{
-    mkdir -p "${DEB_SOFT_DIRS}/DEBIAN"
-    local conffiles="${DEB_SOFT_DIRS}/DEBIAN/conffiles"
-    : > "${conffiles}"
-    local ini
-    for ini in ${DEB_CONFIG_SERVICE_DIR}/*.ini ${DEB_FLASH_SERVICE_DIR}/*.ini; do
-        if [ -f "$ini" ]; then
-            printf '%s\n' "${ini#${DEB_SOFT_DIRS}}" >> "${conffiles}"
-        fi
-    done
-}
-
 function create_install()
 {
     # create release dir and create config files
@@ -555,7 +740,7 @@ function create_install()
     if [ -d "${BUILD_DIR}/release" ];then
        rm -r ${BUILD_DIR}/release
     fi
-    
+
     # 使用固定的安装目录，不包含项目和oem信息
     # FHS / Policy 9.1.1: no /opt -- see the staging variable block above.
     DEB_SOFT_DIRS="${BUILD_DIR}/release/dpkg"
@@ -563,21 +748,14 @@ function create_install()
     DEB_SHARE_DIR="${DEB_SOFT_DIRS}/usr/share/linux-apps"
     DEB_LIB_ROLLING_DIR="${DEB_SOFT_DIRS}/usr/lib/rolling"
 
-    if [ "yes" == "${BUILD_CONFIG}" ]; then
-        DEB_CONFIG_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_config_service"
-    fi
-    if [ "yes" == "${BUILD_FLASH}" ]; then
-        DEB_FLASH_SERVICE_DIR="${DEB_SOFT_DIRS}/etc/rolling/config_file/rolling_flash_service"
-    fi
     if [ "yes" == "${BUILD_MA}" ]; then
         DEB_MA_SERVICE_DIR="${DEB_SHARE_DIR}/rolling_ma_service"
     fi
 
     create_and_install
     copy_file_to_deb_directory
-    write_conffiles
     normalize_permissions
-    
+
     # 使用固定的包名，不包含项目和oem信息
     build_package="rolling_linux"
     echo "build_package: ${build_package}"

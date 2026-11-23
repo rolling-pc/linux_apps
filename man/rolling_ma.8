@@ -1,0 +1,45 @@
+.\" Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+.\" SPDX-License-Identifier: LGPL-2.1-or-later
+.TH ROLLING_MA 8 "2026-11-20" "rolling-linux 2.1.11" "Rolling WWAN Services Manual"
+.SH NAME
+rolling_ma \- ModemManager FCC unlock helper for Rolling Wireless WWAN devices
+.SH SYNOPSIS
+.B /usr/bin/rolling_ma
+.SH DESCRIPTION
+.B rolling_ma
+performs the FCC unlock flow for Rolling Wireless WWAN modems (for
+example the PCI device 14c3:4d75).  It is not meant to be run by hand:
+.BR ModemManager (8)
+invokes it automatically through the shipped FCC unlock scripts when
+a modem is detected as FCC\-locked.
+.PP
+The shipped scripts under
+.I /usr/share/linux\-apps/rolling_ma_service/fcc\-unlock.d
+dispatch on the DMI machine vendor: Dell machines run
+.BR rolling_ma ,
+Lenovo machines run the libmodemauth backend
+.RI ( /usr/lib/rolling/libmodemauth.so.1.1 ).
+The scripts are linked into
+.I /usr/lib/x86_64\-linux\-gnu/ModemManager/fcc\-unlock.d
+for each supported USB/PCI modem ID; ModemManager calls them when the
+modem reports the FCC lock state.
+.SH OPTIONS
+.B rolling_ma
+takes no command\-line options; it is invoked by ModemManager through
+the shipped FCC unlock scripts.
+.SH FILES
+.TP
+.I /usr/share/linux\-apps/rolling_ma_service/fcc\-unlock.d/
+Shipped FCC unlock scripts (one per supported modem ID).
+.TP
+.I /usr/lib/x86_64\-linux\-gnu/ModemManager/fcc\-unlock.d/
+ModemManager FCC unlock lookup directory; the shipped scripts are
+linked into it by the package post\-install script.
+.TP
+.I /usr/lib/rolling/libmodemauth.so.1.1
+FCC unlock backend used on Lenovo machines.
+.SH SEE ALSO
+.BR ModemManager (8),
+.BR rolling_helper (8),
+.BR rolling_config (8),
+.BR rolling_flash (8)

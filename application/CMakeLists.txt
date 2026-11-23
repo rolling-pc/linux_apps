@@ -11,7 +11,7 @@
 # * You should have received a copy of the GNU Lesser General Public License
 # * along with this program. If not, see <http://www.gnu.org/licenses/>.
 # *
-# * Copyright (C) 2025, Rolling Wireless S.a.r.l.
+# * Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
 # */
 
 # Binary-only tree: all four services ship as prebuilt executables

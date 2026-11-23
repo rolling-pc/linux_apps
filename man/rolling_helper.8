@@ -1,0 +1,73 @@
+.\" Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+.\" SPDX-License-Identifier: LGPL-2.1-or-later
+.TH ROLLING_HELPER 8 "2026-11-20" "rolling-linux 2.1.11" "Rolling WWAN Services Manual"
+.SH NAME
+rolling_helper \- D\-Bus helper service for the Rolling Linux apps
+.SH SYNOPSIS
+.B /usr/bin/rolling_helper
+.SH DESCRIPTION
+.B rolling_helper
+provides the
+.B com.rolling.helper
+D\-Bus API used by the Rolling
+.BR rolling_config (8),
+.BR rolling_flash (8)
+and
+.BR rolling_ma (8)
+services.  It is started by
+.BR systemd (1)
+as
+.B rolling_helper.service
+and runs as a system daemon; it is not normally started by hand.
+.PP
+The universal package ships one helper binary per OEM under
+.I /usr/lib/rolling/rolling_helper_service/helper_set/
+(one subdirectory per project and OEM).
+The installed
+.B /usr/bin/rolling_helper
+is a small dispatcher: it reads the machine vendor from the DMI tables
+.RI ( /sys/class/dmi/id/sys_vendor ,
+falling back to
+.IR /sys/class/dmi/id/board_vendor )
+and execs the matching OEM variant, so the same package serves every
+OEM.  On an unknown vendor it prints an error and exits non\-zero
+instead of running a wrong\-OEM helper; the failure is visible in the
+service journal.
+.SH OPTIONS
+.B rolling_helper
+takes no command\-line options; it is managed through systemd.
+.SH FILES
+.TP
+.I /usr/lib/rolling/rolling_helper_service/helper_set/
+Per\-OEM helper binaries; each
+.B <project>_<oem>
+subdirectory contains that OEM's
+.B rolling_helper
+executable.
+.TP
+.I /usr/share/dbus\-1/system.d/com.rolling.helper.conf
+D\-Bus system bus policy for the
+.B com.rolling.helper
+name.
+.SH SYSTEMD
+.B rolling_helper.service
+is ordered after
+.BR ModemManager.service .
+.SH EXAMPLES
+.nf
+systemctl daemon\-reload
+systemctl enable rolling_helper.service
+systemctl start rolling_helper.service
+systemctl status rolling_helper.service
+.fi
+.PP
+Watch the service journal:
+.nf
+journalctl \-u rolling_helper.service
+.fi
+.SH SEE ALSO
+.BR rolling_config (8),
+.BR rolling_flash (8),
+.BR rolling_ma (8),
+.BR ModemManager (8),
+.BR systemd (1)

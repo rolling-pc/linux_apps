@@ -1,0 +1,86 @@
+.\" Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+.\" SPDX-License-Identifier: LGPL-2.1-or-later
+.TH FWUPDATE.INI 5 "2026-11-20" "rolling-linux 2.1.11" "Rolling WWAN Services Manual"
+.SH NAME
+FwUpdate.ini \- runtime configuration file for the rolling_flash service
+.SH DESCRIPTION
+.B FwUpdate.ini
+is the runtime update configuration of the
+.BR rolling_flash (8)
+service.  It uses the INI format: a single
+.B [BASE_CONFIG]
+section with
+.I key=value
+pairs; lines starting with
+.B ;
+are comments.
+.PP
+The file is not shipped as a package file.  It is seeded into
+.I /etc/rolling/config_file/rolling_flash_service/
+from the per\-OEM template under
+.IB /usr/share/linux\-apps/flash_set/ <project>_<oem>/
+by
+.B seed_config.sh
+(called best\-effort by the package post\-install script and again by
+the
+.B rolling_seed_config.service
+first\-boot oneshot while the file is missing).  Seeding never
+overwrites an existing file, so local edits survive upgrades;
+.B dpkg \-\-purge
+removes the file together with
+.IR /etc/rolling .
+.SH KEYS
+.TP
+.B LOG_LV
+Log level of the update flow:
+.B 6
+enables LOG_INFO messages (default),
+.B 0
+disables logging.
+.TP
+.B ChkUpdateNeedSIMENABLE
+.B 0
+the update does not need a SIM card,
+.B 1
+the update requires a SIM card (default).
+.TP
+.B FwUpdateOption
+.B 0
+no update,
+.B 1
+automatic update (default),
+.B 2
+forced update,
+.B 3
+factory mode.
+.TP
+.B POWER_LIMIT
+.B 0
+disable the battery power limit check,
+.B 1
+enable it (default).  While enabled, the update is refused below the
+configured battery threshold.
+.TP
+.B POWER_BAT_THRESHOLD
+Battery percentage (0\-100) required when
+.B POWER_LIMIT
+is enabled; default
+.BR 15 .
+.SH FILES
+.TP
+.I /etc/rolling/config_file/rolling_flash_service/FwUpdate.ini
+Runtime configuration.
+.TP
+.IB /usr/share/linux\-apps/flash_set/ <project>_<oem>/
+Per\-OEM templates shipped by the package.
+.SH EXAMPLES
+.nf
+[BASE_CONFIG]
+LOG_LV = 6
+FwUpdateOption = 1
+POWER_LIMIT = 1
+POWER_BAT_THRESHOLD = 15
+.fi
+.SH SEE ALSO
+.BR rolling_flash (8),
+.BR rwwwanConfig.ini (5)

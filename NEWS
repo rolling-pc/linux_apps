@@ -1,15 +1,33 @@
-Rolling linux apps 2.1.12
+Rolling linux apps 2.1.11
 -------------------------------------------
 
-Packaging compliance release (Canonical review 2026-11):
+Universal multi-OEM package release (Canonical review 2026-11):
 
-* ini configuration files are now dpkg conffiles (Policy 10.7): they ship
-  directly in /etc/rolling/config_file/, dpkg owns upgrade/merge/purge, and
-  the postinst no longer seeds /etc.
-* runtime data moved from /usr/share/rolling to /usr/share/linux-apps
-  (FHS /usr/share/<package> naming).
+* One universal package now ships every OEM variant: the rolling_helper
+  binaries from all helper_set/<project>_<oem>/ directories and the ini
+  templates from all config_set/ and flash_set/ sets.  /usr/bin/rolling_helper
+  dispatches on the machine vendor (DMI) at runtime and fails loudly on an
+  unknown vendor.
+* The ini configuration files are no longer dpkg conffiles: they ship as
+  templates under /usr/share/linux-apps/{config_set,flash_set}/ and are
+  seeded into /etc/rolling/config_file/ by seed_config.sh -- best-effort
+  from the postinst, and again at each boot by the rolling_seed_config.service
+  oneshot while the config is missing.  Seeding never overwrites an existing
+  file, so operator edits survive upgrades; purge removes them together with
+  /etc/rolling.
+* Runtime data lives in /usr/share/linux-apps (FHS /usr/share/<package>
+  naming); third-party libraries are resolved from the system via the
+  declared package dependencies (no vendor bundling, no RUNPATH
+  rewriting at packaging time).
+* Manual pages ship for the four services and the two ini
+  configuration files: rolling_config(8), rolling_flash(8),
+  rolling_helper(8), rolling_ma(8), rwwwanConfig.ini(5),
+  FwUpdate.ini(5) (Debian Policy 12.1).
 * preinst migrates operator-edited ini files from the legacy
   /etc/opt/rolling layout before unpack.
+* The package declares Breaks/Conflicts/Replaces against the old per-OEM
+  packages (linux-apps-<platform>-<project>-<oem> (<< 2.1.11)) so dpkg
+  replaces them automatically on upgrade.
 
 Rolling linux apps 1.0.0
 -------------------------------------------

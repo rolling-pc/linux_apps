@@ -1,0 +1,73 @@
+.\" Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+.\" SPDX-License-Identifier: LGPL-2.1-or-later
+.TH ROLLING_CONFIG 8 "2026-11-20" "rolling-linux 2.1.11" "Rolling WWAN Services Manual"
+.SH NAME
+rolling_config \- firmware configuration service for Rolling Wireless WWAN devices
+.SH SYNOPSIS
+.B /usr/bin/rolling_config
+.SH DESCRIPTION
+.B rolling_config
+is the OEM configuration service of the Rolling Linux apps set for WWAN
+devices.  It is started by
+.BR systemd (1)
+as
+.B rolling_config.service
+and runs as a system daemon; it is not normally started by hand.
+.PP
+On start-up the service reads the OEM\-specific configuration file
+.B rwwwanConfig.ini
+(seeded into
+.IR /etc/rolling/config_file/rolling_config_service/ ,
+see
+.BR rwwwanConfig.ini (5)),
+applies it to the WWAN modem and publishes the running configuration
+to the other Rolling services through the
+.B rolling_helper
+D\-Bus service (see
+.BR rolling_helper (8)).
+.PP
+A configuration reload can be requested by sending the service a SIGHUP
+(systemctl reload rolling_config.service).
+.SH OPTIONS
+.B rolling_config
+takes no command\-line options; it is managed through systemd and the
+configuration file.
+.SH FILES
+.TP
+.I /etc/rolling/config_file/rolling_config_service/rwwwanConfig.ini
+Runtime configuration.  Seeded from the shipped templates at install
+time or first boot, and never overwritten afterwards, so local edits
+survive upgrades.
+.TP
+.I /usr/share/linux\-apps/config_set/<project>_<oem>/
+Per\-OEM configuration templates shipped by the package.
+.TP
+.I /var/lib/rolling/run
+Runtime state directory (created by the package post\-install script).
+.SH SYSTEMD
+.B rolling_config.service
+is ordered after
+.B ModemManager.service
+and
+.BR rolling_helper.service .
+ExecReload re\-reads the configuration on SIGHUP.
+.SH EXAMPLES
+.nf
+systemctl daemon\-reload
+systemctl enable rolling_config.service
+systemctl start rolling_config.service
+systemctl status rolling_config.service
+systemctl reload rolling_config.service
+systemctl stop rolling_config.service
+.fi
+.PP
+Watch the service journal:
+.nf
+journalctl \-u rolling_config.service
+.fi
+.SH SEE ALSO
+.BR rolling_flash (8),
+.BR rolling_helper (8),
+.BR rolling_ma (8),
+.BR rwwwanConfig.ini (5),
+.BR systemd (1)

@@ -11,7 +11,7 @@
 # * You should have received a copy of the GNU Lesser General Public License
 # * along with this program. If not, see <http://www.gnu.org/licenses/>.
 # *
-# * Copyright (C) 2025, Rolling Wireless S.a.r.l.
+# * Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
 # */
 
 cmake_minimum_required(VERSION 3.10)
@@ -38,7 +38,7 @@ option(BUILD_CONFIG "build config" "")
 option(BUILD_MA "build ma" "")
 option(BUILD_MA_LIB "build ma lib artifact" "")
 option(BUILD_BY_LIB "use prebuilt libs" "")
-set(DISTRO_TAG "ubuntu26.04" CACHE STRING "Debian package release tag; affects the prebuilt rolling_ma lookup path only. Third-party libs are bundled (vendor/lib + RUNPATH), so the package runs on Ubuntu 26.04 and later; no per-tag gating is enforced.")
+set(DISTRO_TAG "ubuntu26.04" CACHE STRING "Debian package release tag; affects the prebuilt rolling_ma lookup path only. Third-party libs are resolved from the system via the declared package dependencies (no bundling), so the package runs on Ubuntu 26.04 and later; no per-tag gating is enforced.")
 
 set(build_deb FALSE)
 set(build_rpm FALSE)
@@ -169,15 +169,15 @@ install(CODE "MESSAGE(\"run install script success.\")")
 #   - debhelper : debian/rules passes -DCMAKE_INSTALL_PREFIX=/ and dh supplies
 #                 DESTDIR=debian/tmp, so the relative DESTINATIONs below resolve
 #                 to debian/tmp/usr/bin, debian/tmp/usr/share/linux-apps, etc.
-#   - CPack     : make_deb.sh passes no prefix; CPACK_SET_DESTDIR/CPack staging
+#   - CPack     : the caller passes no prefix; CPACK_SET_DESTDIR/CPack staging
 #                 handles it.  The destinations must stay relative for CPack.
 message(STATUS "Installation prefix: ${CMAKE_INSTALL_PREFIX}")
 set(install_dir "${PROJECT_BINARY_DIR}/release/dpkg/")
 
-# A single set of maintainer scripts serves both BUILD_MA=yes (Dell rw350r,
-# ships rolling_ma + fcc-unlock.d) and BUILD_MA=no (Lenovo rw350r).  The scripts
-# under script/ guard every MA-specific action with an existence check, so they
-# are no-ops when MA is not built.  There is no separate no_ma_script/ tree.
+# A single set of maintainer scripts serves the universal package (ships the
+# FCC unlock backends for every OEM; the fcc-unlock scripts dispatch on the
+# DMI vendor at runtime).  The scripts under script/ guard every MA-specific
+# action with an existence check.  There is no separate no_ma_script/ tree.
 set(PROJECT_DEB_CONTROL_PATH "${PROJECT_SOURCE_DIR}/script")
 message(STATUS "Debian control scripts: ${PROJECT_DEB_CONTROL_PATH} (BUILD_MA=${BUILD_MA})")
 
@@ -199,21 +199,25 @@ macro(rolling_linux_configure_deb_package)
     # land where the maintainer scripts and unit files expect them.
     set(CPACK_PACKAGING_INSTALL_PREFIX "/")
 
-    # Third-party shared libraries (libxml2, glib, fwupd, mbim, udev, ...)
-    # are bundled under /usr/lib/rolling/vendor/lib by the install script
-    # (ldd-collected closure + patchelf'd RUNPATH), so no SONAME-encoded
-    # package names (libxml2-16, libglib2.0-0, libfwupd3, libmbim-glib4,
-    # libudev1) are declared here -- those names drift across Ubuntu
-    # releases and would break installs on future versions.  The package
-    # installs and runs on Ubuntu 26.04 and later without per-release
-    # rebuilds.
+    # Third-party shared libraries (glib, libxml2, fwupd, mbim, udev, ...)
+    # are resolved from the system at run time via the declared package
+    # dependencies below -- no private copies are bundled and the staged
+    # binaries are not modified at packaging time (Debian UpstreamGuide:
+    # "Do not include third-party code").  Direct NEEDED entries of the
+    # prebuilt binaries (verified with ldd):
+    #   rolling_config : glib, libxml2
+    #   rolling_flash  : glib, libxml2, libfwupd
+    #   rolling_helper : glib, libmbim-glib, libudev, libstdc++
+    #   rolling_ma     : glib, libmbim-glib, libmm-glib
+    # The SONAME-encoded package names (libxml2-16, libfwupd3,
+    # libmbim-glib4, ...) match Ubuntu 26.04; re-check them against the
+    # target release's package database when that changes.
     #
     # init-system-helpers provides deb-systemd-helper / deb-systemd-invoke,
     # which the maintainer scripts use instead of raw systemctl
-    # (Policy 9.3.x, upstream review 2026-11).  glibc itself stays on the
-    # system (never bundle libc).
+    # (Policy 9.3.x, upstream review 2026-11).
     set(_rolling_deb_runtime_depends
-        "init-system-helpers, libc6, modemmanager")
+        "init-system-helpers, libc6, modemmanager, libmm-glib0, libglib2.0-0, libxml2-16, libfwupd3, libmbim-glib4 (>= 1.18), libudev1, libstdc++6, libgcc-s1")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "${_rolling_deb_runtime_depends}")
     message(STATUS "Debian package depends: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
 endmacro()
@@ -221,22 +225,55 @@ endmacro()
 # --- Packaging: fixed logic for the binary-only tree -------------------------
 #
 # All services ship as prebuilt executables under application/<service>/, so
-# there is no per-platform source tree to walk any more.  The package name
-# keeps the historical linux-apps-<platform>-<project>-<oem> format.
+# there is no per-platform source tree to walk any more.
+#
+# Universal package (2.1.11): ONE package per project covering every OEM --
+# the OEM-specific helper variants, ini sets and FCC unlock backends all
+# ship inside it and are selected at runtime via the DMI vendor.
+# OEM_BUILD=all (or unset): universal package, name without -<oem>, shipping
+# every OEM section's assets and the union BUILD flags.  A specific
+# OEM_BUILD: single-OEM package, name with -<oem>, shipping only that
+# section's assets and BUILD flags.
 if(PROJECT_BUILD STREQUAL "rw350r")
     set(ROLLING_PLATFORM "mtk")
 else()
     set(ROLLING_PLATFORM "qualcomm")
 endif()
-set(CPACK_PACKAGE_NAME "linux-apps-${ROLLING_PLATFORM}-${PROJECT_BUILD}-${OEM_BUILD}")
+if(OEM_BUILD STREQUAL "all" OR OEM_BUILD STREQUAL "")
+    set(CPACK_PACKAGE_NAME "linux-apps-${ROLLING_PLATFORM}-${PROJECT_BUILD}")
+else()
+    set(CPACK_PACKAGE_NAME "linux-apps-${ROLLING_PLATFORM}-${PROJECT_BUILD}-${OEM_BUILD}")
+endif()
+
+# Migration from the 2.x per-OEM packages (linux-apps-<plat>-<proj>-<oem>):
+# Breaks + Conflicts + Replaces let dpkg remove/replace any installed
+# per-OEM package instead of failing on the shared file paths
+# (/usr/bin/rolling_helper, /usr/bin/rolling_config, ...).  The list comes
+# from the OEM sections of <project>_config (emitted by cmake_config).
+# NOTE: cmake_config emits OEM_SECTIONS space-separated (shell-friendly for
+# the packaging scripts); CMake lists are semicolon-separated, so convert
+# and drop the empty item produced by the trailing space.
+set(_rolling_oem_list "${OEM_SECTIONS}")
+string(REPLACE " " ";" _rolling_oem_list "${_rolling_oem_list}")
+list(REMOVE_ITEM _rolling_oem_list "")
+set(_rolling_legacy_oem_packages "")
+foreach(_oem ${_rolling_oem_list})
+    if(_rolling_legacy_oem_packages STREQUAL "")
+        set(_rolling_legacy_oem_packages
+            "linux-apps-${ROLLING_PLATFORM}-${PROJECT_BUILD}-${_oem} (<< ${PROJECT_VERSION})")
+    else()
+        string(APPEND _rolling_legacy_oem_packages
+            ", linux-apps-${ROLLING_PLATFORM}-${PROJECT_BUILD}-${_oem} (<< ${PROJECT_VERSION})")
+    endif()
+endforeach()
+
+# Take over the files of the 2.x per-OEM packages (see comment above).
+set(CPACK_DEBIAN_PACKAGE_BREAKS "${_rolling_legacy_oem_packages}")
+set(CPACK_DEBIAN_PACKAGE_CONFLICTS "${_rolling_legacy_oem_packages}")
+set(CPACK_DEBIAN_PACKAGE_REPLACES "${_rolling_legacy_oem_packages}")
 
 # 使用install脚本创建的目录结构
 set(deb_soft_dirs "${PROJECT_BINARY_DIR}/release/dpkg")
-
-# DEBIAN/conffiles is generated by the "install" helper at install time
-# (write_conffiles) and embedded into the control tarball via
-# CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA (Policy 10.7, Canonical review 2026-11).
-set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
 
 # NOTE: DESTINATION must be RELATIVE.  An absolute
 # destination is used verbatim and is NOT relocated by
@@ -261,9 +298,10 @@ set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
 
 # 安装二进制与数据目录 (FHS / Policy 9.1.1: no /opt, upstream review 2026-11)
 # Binaries -> /usr/bin, runtime data -> /usr/share/linux-apps (package-name
-# directory per FHS, Canonical review 2026-11), ini conffiles -> /etc/rolling
-# (created by the "install" helper during the install phase, see the
-# install(CODE) above).
+# directory per FHS, Canonical review 2026-11).  Nothing is staged under
+# /etc: the ini files are runtime-seeded into /etc/rolling/config_file by
+# seed_config.sh / rolling_seed_config.service (universal package, 2.1.11),
+# so the maintainers own the /etc lifecycle, not dpkg conffiles.
                         install(DIRECTORY "${deb_soft_dirs}/usr/bin/"
                                 DESTINATION "usr/bin"
                                 USE_SOURCE_PERMISSIONS)
@@ -272,14 +310,10 @@ set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
                                 DESTINATION "usr/share/linux-apps"
                                 USE_SOURCE_PERMISSIONS)
 
-                        # ini configuration files: dpkg conffiles (Policy 10.7).
-                        # Staged by the "install" helper under etc/rolling.
-                        install(DIRECTORY "${deb_soft_dirs}/etc/rolling/"
-                                DESTINATION "etc/rolling"
-                                USE_SOURCE_PERMISSIONS)
-
-                        # lenovo-only shared library; the staging directory
-                        # only exists for OEM_BUILD=lenovo, so the copy is
+                        # OEM helper variants and libmodemauth (no bundled
+                        # vendor libraries any more); the staging directory
+                        # only exists when helper/MA components are built,
+                        # so the copy is
                         # conditional at install time (a configure-time
                         # if(EXISTS) would always be false -- the staging tree
                         # is generated by the "install" helper at install
@@ -318,6 +352,15 @@ set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
                                 DESTINATION "usr/share/dbus-1/system.d"
                                 USE_SOURCE_PERMISSIONS)
 
+                        # Manual pages (Debian Policy 12.1): the "install"
+                        # helper stages them pre-gzipped under
+                        # usr/share/man/man{5,8}, so a plain directory copy
+                        # with USE_SOURCE_PERMISSIONS (0644 after
+                        # normalize_permissions) is enough.
+                        install(DIRECTORY "${deb_soft_dirs}/usr/share/man/"
+                                DESTINATION "usr/share/man"
+                                USE_SOURCE_PERMISSIONS)
+
                         # NOTE: no copyright/doc installation here (Debian
                         # policy 12.5, upstream review 2026-11).  The copyright
                         # file must be installed by the downstream packaging
@@ -340,7 +383,7 @@ set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
                             set(CPACK_DEBIAN_PACKAGE_MAINTAINER "rolling")
                             rolling_linux_configure_deb_package()
                             set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-                                "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM};${PROJECT_DEB_CONFFILES}")
+                                "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM}")
                         elseif (${BUILD_RPM} STREQUAL "yes")
                             set(CPACK_GENERATOR "RPM")
                             # set(CMAKE_BUILD_TYPE Release)
@@ -356,7 +399,7 @@ set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
                             set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_POSTINST}")
                             set(CPACK_RPM_PRE_UNINSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_PRERM}")
                             set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${PROJECT_DEB_CONTROL_POSTRM}")
-                            set(CPACK_RPM_RELOCATION_PATHS "/usr/lib/systemd/system;/usr/bin;/usr/share/linux-apps;/etc/rolling")
+                            set(CPACK_RPM_RELOCATION_PATHS "/usr/lib/systemd/system;/usr/bin;/usr/share/linux-apps")
                         else()
                             set(CPACK_GENERATOR "DEB")
                             set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
@@ -368,7 +411,7 @@ set(PROJECT_DEB_CONFFILES "${deb_soft_dirs}/DEBIAN/conffiles")
                             set(CPACK_DEBIAN_PACKAGE_MAINTAINER "rolling")
                             rolling_linux_configure_deb_package()
                             set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-                                "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM};${PROJECT_DEB_CONFFILES}")
+                                "${PROJECT_DEB_CONTROL_PREINST};${PROJECT_DEB_CONTROL_POSTINST};${PROJECT_DEB_CONTROL_PRERM};${PROJECT_DEB_CONTROL_POSTRM}")
                         endif()
 
 # set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_CURRENT_BINARY_DIR}/CPackConfig_qualcomm_rw135_lenovo.cmake")

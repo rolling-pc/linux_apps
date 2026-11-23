@@ -1,4 +1,19 @@
 #!/bin/bash
+#/* This program is free software; you can redistribute it and/or modify
+# * it under the terms of the GNU Lesser General Public License as published by
+# * the Free Software Foundation; either version 2 of the License, or
+# * (at your option) any later version.
+# *
+# * This program is distributed in the hope that it will be useful,
+# * but WITHOUT ANY WARRANTY; without even the implied warranty of
+# * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# * GNU Lesser General Public License for more details.
+# *
+# * You should have received a copy of the GNU Lesser General Public License
+# * along with this program. If not, see <http://www.gnu.org/licenses/>.
+# *
+# * Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+# */
 
 parse_ini() {
     INIFILE=$1
@@ -23,20 +38,56 @@ parse_ini() {
     ' "$INIFILE"
 }
 
-# for SECTION in "lenovo"; do
-for SECTION in "${3}"; do
-    BUILD_LIB=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_LIB)
-    BUILD_DEB=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_DEB)
-    BUILD_RPM=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_RPM)
-    BUILD_HELPER=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_HELPER)
-    BUILD_DOWN_TOOL=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_DOWN_TOOL)
-    BUILD_FLASH=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_FLASH)
-    BUILD_CONFIG=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_CONFIG)
-    BUILD_MA=$(parse_ini ${1}/${2}_config "$SECTION" BUILD_MA)
-done
+CONFIG_FILE="${1}/${2}_config"
+
+# All OEM sections defined in <project>_config, in order of appearance.
+# The universal package ships every OEM variant (helper binaries, ini sets),
+# so the install script needs the full section list, not just the requested
+# OEM_BUILD.
+OEM_SECTIONS=$(grep -E '^\[' "${CONFIG_FILE}" 2>/dev/null | tr -d '[]' | tr '\n' ' ')
+
+# OEM_BUILD=all (or empty) -> universal package: every OEM section, union
+# BUILD flags.  A specific OEM -> single-OEM package: only that section's
+# assets and BUILD flags.
+REQUESTED_OEM="${3}"
+if [ -n "${REQUESTED_OEM}" ] && [ "${REQUESTED_OEM}" != "all" ]; then
+    if grep -qE "^\[${REQUESTED_OEM}\]" "${CONFIG_FILE}" 2>/dev/null; then
+        OEM_SECTIONS="${REQUESTED_OEM}"
+    else
+        echo "ERROR: [${REQUESTED_OEM}] section not found in ${CONFIG_FILE}" >&2
+        exit 1
+    fi
+fi
+
+# Union of a BUILD_* flag across ALL OEM sections: a component ships in the
+# universal package when any OEM enables it (e.g. BUILD_MA is yes for Dell
+# and no for Lenovo rw350r, so the package ships the FCC unlock backends for
+# both; the fcc-unlock scripts pick the right one via DMI at runtime).
+union_flag() {
+    local item="$1" section val
+    for section in ${OEM_SECTIONS}; do
+        val=$(parse_ini "${CONFIG_FILE}" "$section" "$item")
+        if [ "$val" = "yes" ]; then
+            echo "yes"
+            return
+        fi
+    done
+    echo "no"
+}
+
+BUILD_LIB=$(union_flag BUILD_LIB)
+BUILD_DEB=$(union_flag BUILD_DEB)
+BUILD_RPM=$(union_flag BUILD_RPM)
+BUILD_HELPER=$(union_flag BUILD_HELPER)
+BUILD_DOWN_TOOL=$(union_flag BUILD_DOWN_TOOL)
+BUILD_FLASH=$(union_flag BUILD_FLASH)
+BUILD_CONFIG=$(union_flag BUILD_CONFIG)
+BUILD_MA=$(union_flag BUILD_MA)
+
     cat <<EOF > "${1}/build/${2}_${3}_config.cmake"
 set(PROJECT_BUILD "${2}")
 set(OEM_BUILD "${3}")
+set(OEM_SECTIONS "${OEM_SECTIONS}")
 set(BUILD_LIB "${BUILD_LIB}")
 set(BUILD_DEB "${BUILD_DEB}")
 set(BUILD_RPM "${BUILD_RPM}")

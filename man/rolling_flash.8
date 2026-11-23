@@ -1,0 +1,81 @@
+.\" Copyright (C) 2025-2026, Rolling Wireless S.a.r.l.
+.\" SPDX-License-Identifier: LGPL-2.1-or-later
+.TH ROLLING_FLASH 8 "2026-11-20" "rolling-linux 2.1.11" "Rolling WWAN Services Manual"
+.SH NAME
+rolling_flash \- firmware download and upgrade service for Rolling Wireless WWAN devices
+.SH SYNOPSIS
+.B /usr/bin/rolling_flash
+.SH DESCRIPTION
+.B rolling_flash
+is the firmware update, switch and recovery service of the Rolling
+Linux apps set.  It is started by
+.BR systemd (1)
+as
+.B rolling_flash.service
+and runs as a system daemon; it is not normally started by hand.
+.PP
+On start-up the service reads the OEM\-specific update configuration
+.B FwUpdate.ini
+(seeded into
+.IR /etc/rolling/config_file/rolling_flash_service/ ,
+see
+.BR FwUpdate.ini (5))
+and drives the modem firmware update flow from there.  Firmware
+payloads are consumed from the directory
+.IR /var/lib/rolling/rolling_fw_pkg ,
+which must be populated by the OEM\-provided
+.I fw_package
+before the service is used.
+.PP
+Firmware switching uses the
+.B fastboot
+protocol; install the
+.B fastboot
+tool on the target system if firmware switch operations are required
+(apt\-get install fastboot).
+.PP
+A configuration reload can be requested by sending the service a SIGHUP
+(systemctl reload rolling_flash.service).
+.SH OPTIONS
+.B rolling_flash
+takes no command\-line options; it is managed through systemd and the
+configuration file.
+.SH FILES
+.TP
+.I /etc/rolling/config_file/rolling_flash_service/FwUpdate.ini
+Runtime update configuration.  Seeded from the shipped templates at
+install time or first boot, and never overwritten afterwards, so local
+edits survive upgrades.
+.TP
+.I /usr/share/linux\-apps/flash_set/<project>_<oem>/
+Per\-OEM configuration templates shipped by the package.
+.TP
+.I /var/lib/rolling/rolling_fw_pkg
+Firmware package payloads (created by the package post\-install
+script; populated from the OEM fw_package).
+.SH SYSTEMD
+.B rolling_flash.service
+is ordered after
+.B ModemManager.service
+and
+.BR rolling_helper.service .
+ExecReload re\-reads the configuration on SIGHUP.
+.SH EXAMPLES
+.nf
+systemctl daemon\-reload
+systemctl enable rolling_flash.service
+systemctl start rolling_flash.service
+systemctl status rolling_flash.service
+.fi
+.PP
+Watch the service journal:
+.nf
+journalctl \-u rolling_flash.service
+.fi
+.SH SEE ALSO
+.BR rolling_config (8),
+.BR rolling_helper (8),
+.BR rolling_ma (8),
+.BR FwUpdate.ini (5),
+.BR fastboot (1),
+.BR systemd (1)
