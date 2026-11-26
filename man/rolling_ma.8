@@ -16,9 +16,8 @@ a modem is detected as FCC\-locked.
 The shipped scripts under
 .I /usr/share/linux\-apps/rolling_ma_service/fcc\-unlock.d
 dispatch on the DMI machine vendor: Dell machines run
-.BR rolling_ma ,
-Lenovo machines run the libmodemauth backend
-.RI ( /usr/lib/rolling/libmodemauth.so.1.1 ).
+.BR rolling_ma ;
+Lenovo machines are unlocked by an external vendor tool.
 The scripts are linked into
 .I /usr/lib/x86_64\-linux\-gnu/ModemManager/fcc\-unlock.d
 for each supported USB/PCI modem ID; ModemManager calls them when the
@@ -35,9 +34,6 @@ Shipped FCC unlock scripts (one per supported modem ID).
 .I /usr/lib/x86_64\-linux\-gnu/ModemManager/fcc\-unlock.d/
 ModemManager FCC unlock lookup directory; the shipped scripts are
 linked into it by the package post\-install script.
-.TP
-.I /usr/lib/rolling/libmodemauth.so.1.1
-FCC unlock backend used on Lenovo machines.
 .SH SEE ALSO
 .BR ModemManager (8),
 .BR rolling_helper (8),

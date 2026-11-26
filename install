@@ -213,29 +213,15 @@ function copy_file_to_deb_directory()
 
     if [ "yes" == "${BUILD_MA}" ]; then
         mkdir -p ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
-        # Universal package: both FCC unlock backends ship, and the
-        # generated fcc-unlock scripts dispatch on the DMI vendor
-        # (rolling_ma for Dell machines, libmodemauth for Lenovo machines).
+        # FCC unlock backend ships for Dell machines only; Lenovo machines
+        # are unlocked by an external vendor tool and do not use this
+        # backend.  The generated fcc-unlock scripts dispatch on the DMI
+        # vendor and run rolling_ma on Dell machines.
         mkdir -p ${DEB_LIB_ROLLING_DIR}
         rolling_ma_src=$(resolve_rolling_ma_source)
         cp -f "${rolling_ma_src}" ${DEB_BIN_DIR}/rolling_ma
         chmod 755 ${DEB_BIN_DIR}/rolling_ma
         echo "packaged rolling_ma from ${rolling_ma_src}"
-        HAVE_LIBMODEMAUTH=0
-        if [ -f "${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1" ]; then
-            cp -f ${MA_SERVICE_COMMON_LIB}/libmodemauth.so.1.1 ${DEB_LIB_ROLLING_DIR}/
-            chmod 755 ${DEB_LIB_ROLLING_DIR}/libmodemauth.so.1.1
-            HAVE_LIBMODEMAUTH=1
-            echo "packaged libmodemauth.so.1.1 for Lenovo FCC unlock"
-        else
-            # Not fatal: historical lenovo sections shipped no MA component at
-            # all (BUILD_MA=no), so a build host without the materialized
-            # common-lib tree used to succeed.  Warn loudly; the generated
-            # fcc-unlock scripts then have no Lenovo arm and the unknown-
-            # vendor arm reports it at runtime.
-            echo "WARNING: libmodemauth.so.1.1 not found in ${MA_SERVICE_COMMON_LIB}" >&2
-            echo "  the fcc-unlock scripts will have no Lenovo (libmodemauth) arm" >&2
-        fi
         create_fcc_unlock ${DEB_MA_SERVICE_DIR}/fcc-unlock.d
     fi
 
@@ -564,11 +550,9 @@ function create_fcc_unlock()
 {
     for s in ${OEMUSBID_LIST[@]}
     do
-        # Universal package: the FCC unlock backend differs per OEM
-        # (rolling_ma for Dell machines, libmodemauth for Lenovo machines),
-        # so the script dispatches on the DMI vendor.  The Lenovo arm is
-        # emitted only when libmodemauth.so.1.1 was actually staged
-        # (HAVE_LIBMODEMAUTH, see copy_file_to_deb_directory).
+        # The FCC unlock backend is rolling_ma, which runs on Dell machines
+        # only; Lenovo machines are unlocked by an external vendor tool, so
+        # no Lenovo arm is emitted here.
         cat > "$1/$s" << EOF
 #!/bin/sh
 
@@ -582,9 +566,6 @@ vendor=\$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) || vendor=""
 case "\$vendor" in
     Dell*)   /usr/bin/rolling_ma ;;
 EOF
-        if [ "${HAVE_LIBMODEMAUTH:-0}" = "1" ]; then
-            printf '    LENOVO*) /usr/lib/rolling/libmodemauth.so.1.1 ;;\n' >> "$1/$s"
-        fi
         cat >> "$1/$s" << 'EOF'
     *)
         echo "fcc-unlock: no FCC unlock backend for DMI vendor '$vendor'" >&2

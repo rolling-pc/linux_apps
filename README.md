@@ -15,8 +15,8 @@ This is a Rolling Linux apps set project for WWAN devices.<br>
   ini files ship as per-OEM templates under
   `/usr/share/linux-apps/{config,flash}_set/<project>_<oem>/` and are seeded
   into `/etc/rolling/config_file` by `seed_config.sh` (postinst + a
-  first-boot oneshot unit); the FCC unlock scripts dispatch between
-  rolling_ma and libmodemauth by DMI as well.
+  first-boot oneshot unit); the FCC unlock scripts dispatch on the DMI
+  machine vendor to run rolling_ma on Dell machines.
 
 # License
 Licensing is described in one place, the top-level LICENSE file:
@@ -134,12 +134,11 @@ Note: the ini files are seeded into `/etc/rolling/config_file/` at runtime (post
 ## 5. fccunlock
 - location path:<br>
   rolling_ma : /usr/bin/rolling_ma<br>
-  libmodemauth : /usr/lib/rolling/libmodemauth.so.1.1 (Lenovo machines)<br>
   shipped scripts : /usr/share/linux-apps/rolling_ma_service/fcc-unlock.d<br>
   14c3:4d75 : /usr/lib/x86_64-linux-gnu/ModemManager/fcc-unlock.d (symlink to the shipped script)
 - working:<br>
   rolling_ma while be call by Modemmanager, when Modemmanager detect the modem is locked.<br>
-  The shipped scripts dispatch on the machine vendor (DMI): Dell machines run rolling_ma, Lenovo machines run libmodemauth.
+  The shipped scripts dispatch on the machine vendor (DMI): Dell machines run rolling_ma; Lenovo machines are unlocked by an external vendor tool.
 
 # Release history
 - version 1.0.0<br>

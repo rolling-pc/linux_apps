@@ -68,8 +68,7 @@ esac
 # The executables are shipped 0755; re-assert it in case an operator or an
 # archive extraction dropped the bit.
 fix_modes() {
-    for f in /usr/bin/rolling_ma \
-             /usr/lib/rolling/libmodemauth.so.1.1; do
+    for f in /usr/bin/rolling_ma; do
         if [ -f "$f" ]; then
             chmod 0755 "$f"
         fi

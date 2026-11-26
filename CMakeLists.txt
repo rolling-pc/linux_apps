@@ -310,7 +310,7 @@ set(deb_soft_dirs "${PROJECT_BINARY_DIR}/release/dpkg")
                                 DESTINATION "usr/share/linux-apps"
                                 USE_SOURCE_PERMISSIONS)
 
-                        # OEM helper variants and libmodemauth (no bundled
+                        # OEM helper variants (no bundled
                         # vendor libraries any more); the staging directory
                         # only exists when helper/MA components are built,
                         # so the copy is
